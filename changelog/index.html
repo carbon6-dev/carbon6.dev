@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Changelog · carbon6</title><meta name="description" content="Every carbon6 release and what changed in it."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/changelog/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Changelog · carbon6"><meta property="og:description" content="Every carbon6 release and what changed in it."><meta property="og:url" content="https://carbon6.dev/changelog/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/" aria-current="page">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class=""><article class="prose changelog"><h1>Changelog</h1><p class="lede">One line per change. The packages for every release are on <a href="https://github.com/carbon6-dev/carbon6/releases">GitHub Releases</a>.</p><div><h2 id="022-2026-10-15">0.2.2 (2026-10-15)</h2>
+<ul>
+<li>The policies test waits for the denial to reach the head's log</li>
+<li>The assistant listens for an approval or an answer before asking, so one given the moment it shows is not lost</li>
+<li>make check runs clippy on every target and the wasm UI too, so CI fails on clippy warnings</li>
+<li>Worker tests that restart a worker wait for the old one to let go of its state directory, and the workflow test waits for the step's decision</li>
+<li>No build warnings anywhere: tract is optimized in dev builds (the memex test binaries outgrew macOS's compact unwind tables), and make check, run by CI on Linux and macOS, fails on any warning</li>
+</ul>
+<h2 id="021-2026-10-15">0.2.1 (2026-10-15)</h2>
+<ul>
+<li>Release workflow: the bottle jobs get 120 minutes (the Intel runner takes about 50)</li>
+<li>A terminal's last output reaches its viewers before the exit (the pump could pick the exit first and drop it)</li>
+</ul>
+<h2 id="020-2026-10-15">0.2.0 (2026-10-15)</h2>
+<ul>
+<li>Photo events are rebuilt in one transaction, so a reader never sees a trip with only some of its photos</li>
+<li>GitHub Actions: tests on Linux and macOS for every push and pull request; make release bumps the one workspace version, writes CHANGELOG.md, tags and pushes, and the tag's workflow builds, smoke-tests and publishes .debs, bottles and the Homebrew tap</li>
+<li>Memex things are created race-free when ingests run at once (a folder scan beside an upload could lose a paper's links), and three racy tests wait for what they check</li>
+<li>Open-source pre-flight: MIT OR Apache-2.0 (license files, every crate, brew formulas, a Debian copyright file), README status, security and license sections, os.md and memex.md marked built; markdown and outside links refuse javascript:/data: URLs, attachments are served sandboxed, state directories are 0700, and the head warns when it serves plain HTTP on a LAN address</li>
+<li>Release design: make release cuts locally (checks, version, CHANGELOG.md from commits, debs and bottles, smoke tests, tag); make release-publish pushes to GitHub Releases and a Homebrew tap; no CI</li>
+<li>c6h, c6w and c6m shut down cleanly on SIGTERM (systemd, launchd, docker stop), so the systemd units drop KillSignal=SIGINT</li>
+<li>Homebrew bottles and formulas for c6h, c6w, c6m (as brew services) and c6 in a local tap (make brew, make brew-install), poured without Xcode or the CLT</li>
+<li>Ubuntu packages build on 22.04 by default (they install on 24.04 and 26.04 too), docker-deb-test takes ARCH=amd64|arm64, and Docker build caches are per architecture so docker-deb-all and docker-build-all work</li>
+<li>A c6 (CLI) .deb next to c6h, c6w and c6m; docker-deb clears its output directory first, and the smoke test checks c6 lists the worker online</li>
+<li>Ubuntu packages for c6h, c6w and c6m with systemd units, built in Docker (make docker-deb, docker-deb-all; UBUNTU=24.04) and tried under systemd in a container (make docker-deb-test)</li>
+<li>Measurement design: deferred</li>
+<li>Measurement design: decisions on settling windows, unassisted history and splitting outcomes by artifact</li>
+<li>Measurement design: automatic ratings from what happened to the work, and value estimated from your own unassisted work</li>
+<li>Measurement design: leverage (finished work per hour of your attention) from series, outcomes, presence and a weekly review</li>
+<li>Run any realm's templates (GET /templates with realms; run finds the template's realm, so an app's templates show on the Sessions page and work with c6 run -t), and a file picker for packages: this device, the head (GET /head/fs/list|read, its data directory refused) or a worker, with folder navigation</li>
+<li>Subagents, step 6: Claude Code's own subagents mirrored from its stream into read-only child sessions (nested ones too), sessions.observed (0041), messages and resume refused for them, read-only threads</li>
+<li>Subagents, step 5: threads under their calls (live peek while running, the whole conversation with Stop, Resume and a reply box that can wake the parent), the ◆ list of a session's subagents, a subagent's lineage and reply box on its page, side chats on subagents, find and search through subagent threads, Session.subagents_running and root_id</li>
+<li>Subagents, step 4: nesting (Task and SendMessage below the depth limit, a running limit per tree, the subagent-limits setting in Settings → Agents), tree-wide cost and archiving, children?tree=1</li>
+<li>Subagents, step 3: continuing them (SendMessage to an idle or running subagent, bash_output digests, your messages with wake, POST /resume with the session.subagent_resume prompt), reports of turns no call waited on go to the parent, side chats on and restores of subagents</li>
+<li>Subagents, step 2: partial results (a digest of the subagent's log and the editable session.subagent_partial prompt for every outcome but a report), lost foreground calls answered at recovery, lost background subagents reported with their work, sessions.agent, end_reason and root_id (0040)</li>
+<li>Subagents, step 1: subagents are sessions with their own actor (Delegation in the journaled spec, ActorMsg::Delegate, outcome from the log), SubagentSpawned in the parent's log, interrupts sent to the child, the parent's live hooks and sinks, secrets by the root</li>
+<li>Subagents design: actor-backed child sessions, partial results, SendMessage, nesting, inline threads; docs/subagents.md</li>
+<li>decks-render built and checked: the Paper theme names P052, quotes centred, quiet page rendering; an opt-in end-to-end test (C6_TEST_DECKS_RENDER=1)</li>
+<li>Packages, step 4: the decks-render kit (Chromium, poppler, python-pptx, open fonts; pdf, slides, slide, pptx); decks 1.1 requires it and renders with kit_run; packages may carry text files</li>
+<li>Packages: wait for the started template session's request in the test</li>
+<li>Packages, step 3: template_start, in the session's realm or another whose app exports the template to it (checked against the install's grant)</li>
+<li>Packages, step 2: kits on workers (docker or podman): images built from kits in order, kit_run and kit_shell in a sandbox from the approved permissions (no network, read-only root, not root, the session's folder at /work, limits, timeout)</li>
+<li>Packages, step 1: a local registry of package versions by digest (apps, kits, libraries), installs with requires resolved, locked and shared, one approval per install, cycles and conflicts refused; apps moved over (0039); Settings → Packages</li>
+<li>docs: kits built from kits (dependencies, roots, approvals)</li>
+<li>docs: kits design (local registry, build from definitions, permissions approved at install, sandboxed runs)</li>
+<li>Decks: browser prints pages to PDF; the decks app (outline you approve, theme you choose, HTML slides checked by eye, HTML and PDF delivered) with three themes; docs/decks.md</li>
+<li>Tools can show images to the model: read on an image file, browser screenshots (element, full page, window size; saved to Outputs only when asked); kept in history (the latest 12), shown in the transcript</li>
+<li>Explorer: realm-wide search (records, knowledge, facts, sessions and what was said, decisions, triggers, series, settings) and two-hop neighborhood graphs</li>
+<li>Explorer UI: the realms map, each realm's inventory, overview, wiring, sections and objects with what is connected (lists or a graph); realm signal outlives pages; trigger form follows the realm</li>
+<li>Explorer, head side: realm summary, activity, section lists, objects with what is connected, the map; memex inventory and lists; triggers and decisions created with ?realm=</li>
+<li>docs: realm explorer design</li>
+<li>OS step 10: the worked examples as installable packages (service factory, personal CRM), with the gaps they found fixed: realm templates and workflows, realm budgets, memex events through grants</li>
+<li>OS step 9: apps — JSON packages of configuration installed into realms of their own after your decision, with grants asked and secrets listed; export of any realm (optionally with records); three-way upgrades that keep your edits; removal of a realm and everything in it</li>
+<li>OS step 8: the assistant works in the realm you open it in — its operations admitted as that realm's token, administration only from root, instructions per realm naming where it is</li>
+<li>docs: join the decision log table</li>
+<li>OS step 7: views — a realm's configured screens (table, board, record, chart, feed, page) as a system list, rendered by the UI with actions that set fields or start templates about a record, and each realm's Views menu</li>
+<li>OS step 6: series — points with dimensions per realm, summaries over windows by dimension and hour or day, model usage as computed series, host check history, thresholds and silence as trigger events, record-a-value action, series tools for agents</li>
+<li>OS step 5: triggers — automations become triggers in place (ids, webhook URLs, history kept); record, decision and session events; JSONPath filters and mapping; write, ask and notify actions; loop protection by chain depth and runs an hour; digests of open decisions</li>
+<li>OS step 4d: commons — a realm every realm reads (unless turned off), published into only with an append grant and your review of each record or fact, shared in searches and briefs</li>
+<li>OS step 4c: grants — realms read, add to or copy each other's collections (or some records), read each other's knowledge and call each other's operations only through grants you make; every use logged; agents request them as decisions</li>
+<li>OS step 4b: each realm's memex knowledge in a database of its own (opened by home's memex), home-only mail/calendar/contacts/photos/folders, realm-scoped disputes and events, knowledge dropped with the realm</li>
+<li>OS step 4a: realms you create (with their own system collections), workers and connections available per realm, per-realm settings, realm switcher and Realms panel</li>
+<li>OS step 3: decisions — action items become decisions (ids kept); held tool calls, workflow approve steps and assistant questions open them and settle both ways; decision_request asks without stopping (answer arrives as a message); deadlines, links, Decisions page</li>
+<li>OS step 2c: carbon6's prompts are editable records (sessions, compaction, subagents, assistant, action items, memex) with defaults that follow the code until edited; Settings → Prompts</li>
+<li>OS step 2b: settings lists and memory notes become system collections with per-entry history; realms inherit root's lists (override, root-first, realm-first); upgrades check each migration as it runs</li>
+<li>OS step 2a: collections — strict schemas, records with versions and history, JSON filter queries, agent records tools, memex mirror, Collections page with schema-made forms</li>
+<li>OS step 1: realms (root and home) on every object, realm-scoped API tokens checked by the head, sessions/secrets/notes/action items kept to their realm, memex realm gate; data migrated with checks</li>
+<li>OS step 0: safe upgrades of the head and memex databases (backup, restore on failure, row and data checks, reports, c6h/c6m upgrade --check) with test databases in today's shape</li>
+<li>OS design: build order starts with the upgrade machinery and realm plumbing; collections before decisions before creatable realms</li>
+<li>OS design: revisit what's built (kernel, duplicates, services) and upgrade existing data on every step</li>
+<li>carbon6 as an OS: design for realms, grants, collections, decisions, triggers, series, views and config-only apps</li>
+<li>Memex: one ingest API typed by MIME type (memex.ingest, memex.types) with mail and document handlers; imported mail threads by headers and upgrades to synced</li>
+<li>API reference for agents: carbon6_api tool and /api/v1/openapi.json, generated from the operation catalog</li>
+<li>Memex design: no Thunderbird importer</li>
+<li>Memex design: one ingest API typed by MIME type with registered handlers (4.5); Thunderbird importer as its first client</li>
+<li>Compaction: ask again without tools when the model gives no summary, say what it did, and fall back to a digest so sessions are not stuck</li>
+<li>Session transcript shows published images inline</li>
+<li>Remove follow-through, self-configuration and playbooks; keep environment knowledge and action items</li>
+<li>Playbooks: agents' setup, investigation, repair and action-item prompts are editable settings, not code</li>
+<li>Tests: one integration test binary per crate, dependencies without debug info</li>
+<li>Self-configuration: sessions write kits through the catalog within limits; setup playbook once per repo; repairs</li>
+<li>Environment knowledge in the memex and action items: facts with status, scope, volatility and evidence; disputes; to-do list with sessions</li>
+<li>Follow-through: project kits with reactions, next steps and trackers; investigations on failure</li>
+<li>Follow-through: investigations propose fixes; observations kept forever</li>
+<li>Follow-through and environment knowledge design</li>
+<li>ChatGPT: several accounts and workspaces, each with its own client id; verified ID tokens; sign in again</li>
+<li>Model lists: accept a ChatGPT plan's models[].slug as well as data[].id</li>
+<li>ChatGPT sign-in: send ext_agent_host_id and agent_name_hint, redirect to /callback</li>
+<li>Settings in sections: a menu, one section at a time, linkable at /settings/<section></li>
+<li>Assistant: discovery ranks operations first and says where task models live</li>
+<li>The assistant: an agent in the head that does what the UI does</li>
+<li>Assistant design: an agent in the head that does what the UI does</li>
+<li>Tokens: tell the two kinds apart</li>
+<li>Revert "Enrollment tokens: find the token in whatever was pasted"</li>
+<li>Enrollment tokens: find the token in whatever was pasted</li>
+<li>make dev-memex: enroll (with TOKEN) and run the dev memex</li>
+<li>Memex: a ChatGPT plan cannot embed or transcribe</li>
+<li>Memex: room for thinking models' answers; say so when there is none</li>
+<li>Memex photos and videos: EXIF, places, events, vision, faces, transcripts</li>
+<li>Memex understanding: summaries, topics, commitments, claims; review, graph, timelines</li>
+<li>Memex: documents, papers and trails; Gmail, Calendar and Contacts</li>
+<li>Memex @-mentions: things in the composer, cards attached on send</li>
+<li>Memex: a knowledge service on the fabric, with two-way context</li>
+<li>Memex design: Thunderbird backfill; decisions settled</li>
+<li>Memex design: Google accounts, calendar and contacts</li>
+<li>Memex design draft</li>
+<li>Web push and a phone-friendly head</li>
+<li>Workflows: chained steps, conditions, approval gates</li>
+<li>Browser tool: a headless Chromium per session</li>
+<li>Fixes from the phase 4 live check</li>
+<li>Automation run history and health</li>
+<li>Cron: no hang across the end of daylight saving time</li>
+<li>Host inventory: hosts with labels, fleet runs by label, checks</li>
+<li>Usage, cost and budgets</li>
+<li>Notifications: channels, approval links, notify tool</li>
+<li>Model routing by label</li>
+<li>Policies and approvals</li>
+<li>Memory: notes across sessions, scoped by label</li>
+<li>Export: label hook context as what was sent, not an empty command</li>
+<li>Connector presets; secrets in MCP configs</li>
+<li>Automations: run templates on a schedule or from a webhook</li>
+<li>Session templates and fleet runs</li>
+<li>Outputs: deliverables the agent publishes, previewed and versioned</li>
+<li>Web search for any model: Brave, Tavily or SearXNG</li>
+<li>SSH targets: sessions on another machine through a worker</li>
+<li>Sessions without a folder get a scratch workspace</li>
+<li>Secret store: environment variables the agent can use but never see</li>
+<li>Search results follow the label filter</li>
+<li>Browser notifications follow the label filter</li>
+<li>Inbox badge follows the label filter</li>
+<li>Filter the activity dock by labels too</li>
+<li>Label filter in the inbox and mission control</li>
+<li>Fix workers rejected as revoked when their serial starts with zero</li>
+<li>Background tasks that tell the agent when they end</li>
+<li>Session labels, and settings that apply by label</li>
+<li>Slash commands, agents and skills live in the head's settings</li>
+<li>Hooks live in the head's settings, with an editor in Settings</li>
+<li>Headless CLI (c6) and API tokens</li>
+<li>Hooks in Claude Code's settings.json format</li>
+<li>Named agents from .claude/agents as Task subagent types</li>
+<li>Slash commands: .claude/commands, /compact, /init, /review, /clear, /export</li>
+<li>Attachments and @-mentions</li>
+<li>Tests: account for checkpoint events</li>
+<li>Rewind and edit-and-resend, with file checkpoints</li>
+<li>Workspace: sessions opened from a list open side by side</li>
+<li>Workspace UI: tiles of sliding columns, activity dock, inbox, mission control</li>
+<li>Find in session: highlight every match on the page</li>
+<li>Find in session: step through every match, side chats included</li>
+<li>Search: say which words were ignored as too short</li>
+<li>Search: side chat hits open inside their top-level session</li>
+<li>Session search (SQLite FTS5) with deep links to the matching block</li>
+<li>Dev head and worker keep state in the standard directories</li>
+<li>Rename passkeys</li>
+<li>Settings: explain that a synced passkey is listed once</li>
+<li>Clearer message when a device already has a synced passkey</li>
+<li>Docs: restart the browser after trusting the head's CA</li>
+<li>One-time codes for signing in another device</li>
+<li>Android: serve the web UI CA as /ca.crt</li>
+<li>Settings: CA download links bypass the client-side router</li>
+<li>Mac instructions for trusting the head's web UI CA</li>
+<li>Web UI HTTPS from the head's own name-constrained CA, not Tailscale</li>
+<li>Sign-in: passkeys and one-time login links; HTTPS for the web UI</li>
+<li>Head answers to its Tailscale MagicDNS name</li>
+<li>Dev head listens on all interfaces; wildcard binds work</li>
+<li>Side chat header shows the effort</li>
+<li>Hide effort for connections that do not pass it on</li>
+<li>Effort in the model picker</li>
+<li>Model switching in the main session composer</li>
+<li>Side chat header shows the current model</li>
+<li>Model switching in side chats; Ask button at the end of each message</li>
+<li>Side chats: threaded, persistent, nestable conversations off any message</li>
+<li>Session page: per-turn and session token stats, context gauge</li>
+<li>Worker journal: stop trimming live sessions; one worker per state dir</li>
+<li>Changes tab: explain folders that are not git repositories</li>
+<li>make dev-worker: enroll only when TOKEN is given</li>
+<li>Folder picker for new sessions; test connection with model discovery</li>
+<li>Docker-based build: make help, docker-build/test/images/head</li>
+<li>M5: hardening, restore, chaos tests, evals, UX polish</li>
+<li>M4: web tools, background shells, subagents, MCP, skills, OTLP</li>
+<li>M3: remote files, git changes, worktrees, terminals</li>
+<li>Claude Code backend: run the worker's own claude CLI for sessions</li>
+<li>M2: Anthropic and Responses clients, ChatGPT sign-in, tool profiles, compaction</li>
+<li>M1: sessions, agent loop, tools, journal sync, session UI</li>
+<li>M0: workspace, enrollment, mTLS worker attach, fleet UI</li>
+<li>Add Carbon6 architecture doc</li>
+<li>Add Carbon6 requirements doc</li>
+</ul>
+</div></article></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

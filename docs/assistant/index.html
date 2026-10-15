@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>The assistant · carbon6</title><meta name="description" content="An agent that can do anything you can do in the UI, and answer questions about your setup."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/assistant/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="The assistant · carbon6"><meta property="og:description" content="An agent that can do anything you can do in the UI, and answer questions about your setup."><meta property="og:url" content="https://carbon6.dev/docs/assistant/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/" aria-current="page">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>The carbon6 assistant — Design</h1><div><p>An agent inside carbon6 that can do anything you can do in its UI, answer questions about carbon6 and its setup, and ask you for whatever it needs.</p>
+<blockquote>
+<p>"What can I do in carbon6?"
+"Which models are set up for vision?"
+"Create an enrollment token for a new worker."</p>
+</blockquote>
+<h2 id="1-decisions">1. Decisions</h2>
+<table><thead><tr><th>Question</th><th>Decision</th></tr></thead><tbody>
+<tr><td>One agent or several?</td><td>One agent type with many short conversations. It is not one endless conversation, and it is not specialised agents.</td></tr>
+<tr><td>Where does it run?</td><td>In the head. Its tools are head operations, and it must work before any worker is attached.</td></tr>
+<tr><td>Confirmations</td><td>Ask before destructive operations. Everything else runs without asking unless your own policies say otherwise.</td></tr>
+<tr><td>Secrets</td><td>They never pass through the model. Results that contain one are shown to you as a card.</td></tr>
+</tbody></table>
+<h2 id="2-shape">2. Shape</h2>
+<ul>
+<li><strong>Entry points:</strong>
+<ul>
+<li>"Ask carbon6", from ⌘K, the header and the phone layout;</li>
+<li>an assistant session in the sessions list, like any other.</li>
+</ul>
+</li>
+<li><strong>Each question starts a short session</strong> of the kind <code>assistant</code>. It carries the page you're on as context, such as "viewing worker <code>build-1</code>" or "Settings → Memex".
+<ul>
+<li>Sessions are cheap and searchable, and run concurrently.</li>
+<li>What should last across conversations goes to memory notes and the memex, not into an ever-growing transcript.</li>
+</ul>
+</li>
+<li><strong>Long-running work is delegated:</strong> "every morning…" or "watch CI…" becomes an automation, workflow or ordinary session that the assistant creates through the same operations. The assistant does not stay running.</li>
+<li><strong>Model:</strong> a setting, <code>assistant_model</code> (a connection and model; default: the default session model). Model routing by label applies as usual. Any API connection works, including a ChatGPT plan. Claude Code connections do not, because the head runs the loop itself.</li>
+</ul>
+<h2 id="3-the-operation-catalog">3. The operation catalog</h2>
+<p>UI parity comes from a catalog, not from hand-written tools.</p>
+<ul>
+<li><strong>Every API route has an entry:</strong>
+<ul>
+<li><code>op</code>: a stable dotted name, e.g. <code>workers.enrollments.create</code>, <code>settings.memex.get</code>;</li>
+<li><code>area</code>: sessions, fleet, connections, memex, mail, automations, settings, …;</li>
+<li><code>summary</code> and <code>description</code>, with the description taken from the route's doc comment;</li>
+<li><code>method</code> and <code>path</code>;</li>
+<li><code>input</code> and <code>output</code>: JSON Schemas generated from the <code>c6-api</code> types;</li>
+<li><code>effect</code>: <code>read</code>, <code>write</code>, <code>destructive</code> (delete, revoke, overwrite, send) or <code>secret</code> (the output holds a secret);</li>
+<li><code>choices</code>: for inputs whose valid values come from live data, the op that lists them, e.g. <code>connection ← connections.list</code>.</li>
+</ul>
+</li>
+<li><strong>A parity test</strong> fails when a route has no catalog entry, or an entry has no route. That keeps "everything in the UI is doable through the assistant" true as carbon6 grows.</li>
+<li><strong>The docs</strong> (README, docs/*.md) are indexed by section, so "how do I…" answers can quote them.</li>
+<li>The same catalog later drives a generic <code>c6 &lt;op&gt;</code> in the CLI.</li>
+</ul>
+<h2 id="4-tools">4. Tools</h2>
+<p>The assistant has five tools, so its context stays small however many operations there are.</p>
+<table><thead><tr><th>Tool</th><th>Does</th></tr></thead><tbody>
+<tr><td><code>c6_discover(query, area?)</code></td><td>Searches the catalog and the docs. Returns ops (name, summary, effect) and doc passages. With no query, it lists the areas: "what can I do".</td></tr>
+<tr><td><code>c6_describe(op)</code></td><td>Returns an op's full input and output schema and where its choices come from.</td></tr>
+<tr><td><code>c6_call(op, input)</code></td><td>Runs an op through the head's own handlers, as you. A result with a secret is replaced by <code>{"shown_to_user": true, …non-secret fields}</code>, and the secret goes to the UI as a card.</td></tr>
+<tr><td><code>c6_ask(title, fields)</code></td><td>Asks you for inputs. See §5.</td></tr>
+<tr><td><code>memex_search</code> / <code>memex_get</code></td><td>Already exist; for questions about your knowledge, within its scope (§6).</td></tr>
+</tbody></table>
+<p>The system prompt tells it to discover before acting, and never to guess values. When a required input is missing or ambiguous, it asks.</p>
+<h2 id="5-asking-for-inputs">5. Asking for inputs</h2>
+<p><code>c6_ask</code> takes fields in JSON Schema terms (type, enum, default, description) plus <code>choices_from</code> (an op). The UI renders a form in the transcript:</p>
+<ul>
+<li>dropdowns filled from live data, such as your actual connections and workers;</li>
+<li>defaults filled in;</li>
+<li>validation against the schema;</li>
+<li>it works on a phone.</li>
+</ul>
+<p>The tool waits for the submitted values, the same way an approval waits. Cancelling ends the tool call with "cancelled by the user".</p>
+<h2 id="6-safety">6. Safety</h2>
+<ul>
+<li><strong>Destructive operations ask first.</strong> <code>c6_call</code> on a <code>destructive</code> op raises the existing <code>Approval</code> event: the op, the input, and a one-line consequence ("revokes worker build-1; its sessions stop"). The call waits on the existing approval endpoint, with the same inbox, notifications and signed approval links. This check lives in the head (the head runs this loop), so it doesn't depend on the worker's policy engine. Your own policies (tool <code>c6_call</code>, input regex on the op) still apply on top: <code>ask</code> or <code>deny</code> for anything else.</li>
+<li><strong>Secrets:</strong> see <code>c6_call</code>. API tokens, enrollment tokens and login links reach you only. The transcript keeps a redacted copy.</li>
+<li><strong>Scope:</strong> by default the assistant's memex scope is the default one, so no mail or photos. A scope rule can widen it; its labels are <code>assistant</code>. Mail can't instruct it unless you let mail in. Even then, destructive operations still ask first.</li>
+<li><strong>Identity:</strong> it acts as you, with your permissions, and every call is logged as a tool call in its session.</li>
+</ul>
+<h2 id="7-build-order">7. Build order</h2>
+<ol>
+<li><strong>Catalog and reading:</strong>
+<ul>
+<li>catalog plus parity test;</li>
+<li>the head-hosted <code>assistant</code> session kind, using <code>c6-agent</code>'s loop in the head;</li>
+<li><code>c6_discover</code>, <code>c6_describe</code>, and <code>c6_call</code> for <code>read</code> ops;</li>
+<li>"Ask carbon6" in the UI;</li>
+<li>evals: "what can I do", "which models are set up for vision", "is any worker offline", …</li>
+</ul>
+</li>
+<li><strong>Acting:</strong>
+<ul>
+<li><code>write</code>, <code>destructive</code> and <code>secret</code> ops;</li>
+<li>the approval check for destructive ops;</li>
+<li>secret cards;</li>
+<li><code>c6_ask</code> forms.</li>
+<li>Evals: "create an enrollment token for a new worker" (asks for a name, shows a card), "add an Ollama connection", "revoke worker X" (asks first).</li>
+</ul>
+</li>
+<li><strong>Context:</strong>
+<ul>
+<li>page context;</li>
+<li>suggested next steps ("this worker is offline: re-enroll?");</li>
+<li><code>c6 &lt;op&gt;</code> generated from the catalog.</li>
+</ul>
+</li>
+</ol>
+<h2 id="8-as-built">8. As built</h2>
+<ul>
+<li><strong>Code:</strong>
+<ul>
+<li><code>c6-head/src/catalog.rs</code> holds the operations: every HTTP route the UI uses, plus the memex methods it calls.</li>
+<li><code>c6-head/src/assistant.rs</code> holds the head's worker connection, the conversation actors and the tools.</li>
+</ul>
+</li>
+<li><strong>The head's own worker:</strong> a <code>workers</code> row with the role <code>head</code>.
+<ul>
+<li>It is attached to the registry in-process and hidden from the worker list.</li>
+<li>It cannot be revoked, deleted or used for ordinary sessions.</li>
+<li>Its conversations' commands go through the normal command queue, and their events go through <code>sessions::ingest</code>.</li>
+<li>A conversation's actor rebuilds its state from the log after a restart.</li>
+<li>Requests for files, git or terminals on it get an error right away.</li>
+</ul>
+</li>
+<li><strong><code>c6_call</code> runs operations as you</strong>:
+<ul>
+<li>HTTP operations go through the head's own router, with an in-process <code>InternalCall</code> marker that the sign-in check accepts. Outside requests cannot set it.</li>
+<li>Memex operations go through <code>memex::call</code> with <code>made_by: assistant</code>.</li>
+</ul>
+</li>
+<li><strong>Asking first:</strong>
+<ul>
+<li>before destructive operations;</li>
+<li>before a list replacement that drops entries (compared by name or id with the current list);</li>
+<li>when one of your policies matches <code>c6_call</code> and its input (<code>ask</code>). A <code>deny</code> refuses the call.</li>
+<li>Approvals are ordinary <code>Approval</code> events, decided through the existing endpoint.</li>
+</ul>
+</li>
+<li><strong>Questions:</strong>
+<ul>
+<li>The question is a <code>Question</code> event (asked, answered, cancelled); your answer is an <code>Answer</code> command (<code>POST /api/v1/sessions/{id}/answers/{call_id}</code>).</li>
+<li>Secret fields come back to the model as placeholders. <code>c6_call</code> replaces them with the value.</li>
+<li>The log records <code>[secret]</code>.</li>
+</ul>
+</li>
+<li><strong>Secret outputs:</strong>
+<ul>
+<li>The secret is an ephemeral <code>SecretCard</code> on the session's live stream. It is shown while the conversation is open and is never stored.</li>
+<li>The tool result says <code>[shown to the user]</code>.</li>
+</ul>
+</li>
+<li><strong>API:</strong>
+<ul>
+<li><code>POST /api/v1/assistant</code> (prompt and page context);</li>
+<li><code>GET</code>/<code>PUT /api/v1/settings/assistant</code>;</li>
+<li><code>GET /api/v1/catalog</code> and <code>POST /api/v1/catalog/call</code> (for the CLI: destructive operations need <code>confirmed</code>).</li>
+</ul>
+</li>
+<li><strong>CLI:</strong> <code>c6 ops [words]</code> and <code>c6 op &lt;name&gt; key=value…</code>.</li>
+<li><strong>UI:</strong>
+<ul>
+<li>✦ Ask in the header (⌘J), with the focused column as context;</li>
+<li>question forms;</li>
+<li>secret cards;</li>
+<li>Settings → Assistant.</li>
+</ul>
+</li>
+<li><strong>Not built:</strong> the assistant does not wait for the sessions it starts (it reports that it started them).</li>
+</ul>
+<h3 id="realms-os-step-8">Realms (OS step 8)</h3>
+<ul>
+<li><strong>A conversation works in one realm:</strong> the realm picked in the header when it starts. With "All realms" it is root, which administers carbon6 and reaches every realm.</li>
+<li><strong>Its operations are admitted like that realm's API token.</strong> It reaches the realm's sessions, collections, decisions, triggers, views, series and knowledge. Administration (workers, connections, realms, grants, settings) answers 403, and the assistant is told to send you to "All realms" for it.</li>
+<li><strong>Its instructions</strong> are the <code>assistant.base</code> prompt as the realm has it (a realm can override it), with <code>{{realm}}</code> naming the realm.</li>
+<li><strong>Commons</strong> is not a place to work in.</li>
+</ul>
+<h2 id="9-open-questions">9. Open questions</h2>
+<ul>
+<li>Should the assistant be able to start ordinary sessions on workers and follow them (for example "run the tests in proj X and tell me")? It can through the ops; the question is whether it should wait for results in the same conversation.</li>
+<li>Voice input on the phone.</li>
+</ul>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/assistant.md">docs/assistant.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-decisions">1. Decisions</a></li><li><a href="#2-shape">2. Shape</a></li><li><a href="#3-the-operation-catalog">3. The operation catalog</a></li><li><a href="#4-tools">4. Tools</a></li><li><a href="#5-asking-for-inputs">5. Asking for inputs</a></li><li><a href="#6-safety">6. Safety</a></li><li><a href="#7-build-order">7. Build order</a></li><li><a href="#8-as-built">8. As built</a></li><li><a href="#9-open-questions">9. Open questions</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

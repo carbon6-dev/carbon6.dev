@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Packages · carbon6</title><meta name="description" content="Apps, kits and libraries, installed from a registry with the permissions they ask for."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/packages/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Packages · carbon6"><meta property="og:description" content="Apps, kits and libraries, installed from a registry with the permissions they ask for."><meta property="og:url" content="https://carbon6.dev/docs/packages/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/" aria-current="page">Packages</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Packages — Design</h1><div><p>Everything you install in carbon6 is a <strong>package</strong>: an app with a realm of its own, a kit of software and tools that runs in a sandbox, or a library of configuration. Packages live in a registry, local first. They can require other packages, and installing one asks you once for everything it and its new dependencies need, the way Android asks for an app's permissions.</p>
+<h2 id="1-words">1. Words</h2>
+<ul>
+<li>
+<p><strong>Package:</strong> a manifest (name, version, what it requires, what it asks permission for) with optional parts. Its role comes from the parts it has:</p>
+<ul>
+<li><strong>app:</strong> has a realm and configuration for it (<code>decks</code>, <code>crm</code>);</li>
+<li><strong>kit:</strong> has an environment to build (a Dockerfile and files) and the tools it offers (<code>decks-render</code>, with tool <code>pptx</code>);</li>
+<li><strong>library:</strong> configuration with no realm of its own, added to the realm of whatever requires it (a skill pack such as <code>writing-style</code>).</li>
+</ul>
+<p>A package can be more than one.</p>
+</li>
+<li>
+<p><strong>Registry:</strong> where packages are kept, each version content-addressed by a digest. carbon6's head has the <strong>local registry</strong>: packages you make, import, or that carbon6 ships. <strong>Remote registries</strong> come later, synced into the local one.</p>
+</li>
+<li>
+<p><strong>Install:</strong> a package version put to use, either in a realm (apps, libraries) or for every worker to build (kits), with the permissions you approved.</p>
+</li>
+<li>
+<p><strong>Tool:</strong> a command a kit offers to agents, with its arguments typed.</p>
+</li>
+</ul>
+<h2 id="2-the-manifest">2. The manifest</h2>
+<pre><code class="language-json">{
+  "package": "decks",
+  "version": "1.1.0",
+  "description": "Presentation decks from a brief.",
+  "requires": { "decks-render": "^1.0" },
+  "permissions": {
+    "secrets": [],
+    "workers": "any",
+    "grants": [],
+    "files": "session",
+    "network": "none",
+    "cpus": 2,
+    "memory_mb": 2048,
+    "timeout_s": 300,
+    "shell": false
+  },
+  "realm": "decks",
+  "contents": { "collections": [], "skills": [], "templates": [], "views": [], "triggers": [], "records": {}, "memory": [] },
+  "exports": { "templates": ["deck"] },
+  "kit": {
+    "build": { "dockerfile": "Dockerfile", "files": ["render.py"] },
+    "tools": [{ "name": "pdf", "description": "…", "command": ["python3", "/opt/kit/render.py", "pdf", "{html}", "{out}"], "args": { "html": "path", "out": "path" } }]
+  }
+}
+</code></pre>
+<ul>
+<li><strong>Name and version:</strong> <code>package</code> (or <code>app</code>, as packages were first written) and a semantic <code>version</code>.</li>
+<li><strong><code>requires</code>:</strong> other packages by name, each with a version range (<code>^1.2</code>, <code>~1.2</code>, <code>&gt;=1.0</code>, <code>1.2.3</code>, <code>*</code>).</li>
+<li><strong><code>permissions</code>:</strong> one list for everything the package asks for.
+<ul>
+<li><strong>For a realm:</strong> <code>secrets</code> it needs set, <code>workers</code> (<code>any</code> or <code>dedicated</code>), and <code>grants</code> from other realms.</li>
+<li><strong>For kit runs:</strong> <code>files</code> (<code>session</code> or <code>session-ro</code>), <code>network</code> (<code>none</code> or <code>any</code>; allow-lists by host later), <code>cpus</code>, <code>memory_mb</code>, <code>timeout_s</code>, and <code>shell</code> (whether agents may run any command in it).</li>
+<li><strong>Older packages:</strong> <code>needs</code> is still read as part of <code>permissions</code>.</li>
+</ul>
+</li>
+<li><strong><code>realm</code> and <code>contents</code>:</strong> an app's realm and configuration, as before (docs/os.md §5). A library has <code>contents</code> but no <code>realm</code>.</li>
+<li><strong><code>exports</code>:</strong> what an app offers to apps that require it (its templates).</li>
+<li><strong><code>kit</code>:</strong> the environment and its tools.
+<ul>
+<li><code>build.dockerfile</code> and <code>build.files</code> are files stored with the package.</li>
+<li>The Dockerfile names other kits as <code>kit:&lt;name&gt;</code> (<code>FROM kit:python-base</code>). Those kits must be in <code>requires</code>.</li>
+</ul>
+</li>
+<li><strong>The digest:</strong> a hash of the manifest and its files. Two packages with the same name and version but different digests can't both be in the registry.</li>
+</ul>
+<h2 id="3-requiring-packages">3. Requiring packages</h2>
+<p>What requiring means depends on the role of what's required:</p>
+<table><thead><tr><th>Required package</th><th>The requirer gets</th></tr></thead><tbody>
+<tr><td>kit</td><td>its tools, in the sessions of the requiring realm; and, for a kit requiring a kit, <code>kit:&lt;name&gt;</code> in its Dockerfile, resolved to the locked version</td></tr>
+<tr><td>library</td><td>its configuration, added to the requiring realm (and upgraded with it)</td></tr>
+<tr><td>app</td><td>the app, installed in its own realm, and a grant to start its exported templates from the requiring realm</td></tr>
+</tbody></table>
+<ul>
+<li><strong>Resolution:</strong> installing a package resolves its requirements, then theirs, picking the newest version in the registry that each range allows.
+<ul>
+<li><strong>Locking:</strong> every edge is locked to a digest, kept with the install.</li>
+<li><strong>Sharing:</strong> a package version is installed once and shared by everything that requires it.</li>
+<li><strong>Cycles</strong> are refused. So is a requirement an installed version doesn't meet, until you upgrade that package.</li>
+</ul>
+</li>
+<li><strong>Kits built from kits:</strong>
+<ul>
+<li><strong>Build order:</strong> a kit's dependencies are built first, each version once.</li>
+<li><strong>Digests:</strong> a kit's digest covers its dependencies' digests, so a new base rebuilds only what uses it.</li>
+<li><strong>Roots:</strong> the recursion ends at roots: kits whose Dockerfile starts from a pinned upstream image (<code>debian:bookworm-slim</code>, by digest where possible) or <code>scratch</code>. Once a root's base image is mirrored locally, builds need nothing outside.</li>
+<li><strong>Permissions don't carry over:</strong> a kit used to build another lends its files, not its permissions.</li>
+</ul>
+</li>
+</ul>
+<h2 id="4-permissions-approval-and-the-sandbox">4. Permissions, approval and the sandbox</h2>
+<ul>
+<li><strong>One decision per install:</strong> it lists everything the package and its new dependencies ask for, in plain words. For example:
+<ul>
+<li>"Read and write files in the session's folder. No network. Up to 2 CPUs and 2 GB of memory, 5 minutes a run."</li>
+<li>"Built from: python-base 1.0."</li>
+<li>"Needs secrets set: GITHUB_TOKEN."</li>
+</ul>
+</li>
+<li><strong>Approval is per version.</strong> An upgrade asks again only for what grew.</li>
+<li><strong>Revoking</strong> a kit stops its tools.</li>
+<li><strong>The sandbox for every kit run:</strong>
+<ul>
+<li><code>--rm</code>, <code>--network none</code> (unless <code>any</code>), and a read-only root filesystem with a tmpfs at /tmp;</li>
+<li>the session's folder at /work (read-only for <code>session-ro</code>), and nothing else of the host;</li>
+<li><code>--cap-drop ALL</code>, <code>--security-opt no-new-privileges</code>, and a non-root user;</li>
+<li><code>--pids-limit</code>, <code>--cpus</code> and <code>--memory</code> from the permissions; the run is killed at the timeout;</li>
+<li>approved secrets as environment variables for that run only, never baked into images.</li>
+</ul>
+</li>
+<li><strong>Builds</strong> run with network access, since they fetch packages. Their code is part of what you approve: the decision shows what a kit is built from.</li>
+</ul>
+<h2 id="5-workers">5. Workers</h2>
+<ul>
+<li><strong>Runtimes:</strong> a worker uses Docker or Podman (the same commands); Apple's <code>container</code> comes later. It reports which it has. Kit tools run only on workers with a runtime; elsewhere a kit tool says so plainly.</li>
+<li><strong>Builds:</strong>
+<ul>
+<li>On first use, the worker fetches a kit's files from the head, then builds its dependencies and the kit locally.</li>
+<li>In each Dockerfile, <code>kit:&lt;name&gt;</code> is replaced by the local tag of the locked version. Images are tagged <code>c6kit/&lt;name&gt;:&lt;digest12&gt;</code> and reused while they exist.</li>
+<li>Build failures come back with the build's log.</li>
+</ul>
+</li>
+<li><strong>Runs:</strong>
+<ul>
+<li>Each tool call is one container run in the sandbox above.</li>
+<li><strong>Path arguments</strong> must be inside the session's folder and are mapped to /work.</li>
+<li><strong>What comes back:</strong> the tool's output and exit status. Files it writes are in the session's folder, where <code>read</code> shows images to the model.</li>
+</ul>
+</li>
+</ul>
+<h2 id="6-agents">6. Agents</h2>
+<ul>
+<li><strong><code>kit_run {kit, tool, args}</code></strong> runs a tool. With no <code>kit</code>, it lists the kits and tools the session may use.</li>
+<li><strong><code>kit_shell {kit, command}</code></strong> runs a command in a kit whose permissions include <code>shell</code>.</li>
+<li><strong><code>template_start {realm, template, input}</code></strong> starts a template:
+<ul>
+<li>in the session's own realm, or in another realm whose app exports it to this one (the grant made when the requiring app was installed);</li>
+<li>the started sessions run in that realm, and the caller gets their ids.</li>
+</ul>
+</li>
+</ul>
+<h2 id="7-the-registry-and-the-ui">7. The registry and the UI</h2>
+<ul>
+<li><strong>The head keeps:</strong>
+<ul>
+<li>packages (manifest, digest, files), in tables of their own;</li>
+<li>installs (package, version, digest, realm or none, the approved permissions, what requires it, state);</li>
+<li>the decision waiting on an install or upgrade.</li>
+</ul>
+</li>
+<li><strong>The API:</strong>
+<ul>
+<li><code>/api/v1/packages</code>: list the registry, add a version (manifest and files), read one, read a file, delete an unused version;</li>
+<li><code>/api/v1/installs</code>: list, plan, install, upgrade, remove;</li>
+<li><code>/api/v1/apps</code>, kept as before for app packages (it now goes through the registry).</li>
+</ul>
+</li>
+<li><strong>Settings → System → Packages</strong> (in place of Apps):
+<ul>
+<li>the registry by name, with versions and roles;</li>
+<li>what's installed, where, and what requires it;</li>
+<li>add a package from a file or paste;</li>
+<li>plan, install, upgrade, remove;</li>
+<li>a kit's tools, permissions and Dockerfile.</li>
+</ul>
+</li>
+<li><strong>Upgrade:</strong> existing app installs move to installs, and their packages into the registry, on upgrade (migration 0039).</li>
+</ul>
+<h2 id="8-build-order">8. Build order</h2>
+<ol>
+<li>
+<p><strong>The local registry and installs:</strong> packages, files, digests; <code>requires</code> with ranges, locking, shared installs and cycle checks; one approval decision per install; apps moved over; the API and Settings page.</p>
+</li>
+<li>
+<p><strong>Kits:</strong></p>
+<ul>
+<li>worker runtime detection, builds in dependency order with <code>kit:</code> resolved, and sandboxed runs;</li>
+<li><code>kit_run</code> and <code>kit_shell</code>;</li>
+<li>a session sees the kits its realm requires.</li>
+</ul>
+<p><em>As built:</em> a kit is in a session when an install in the session's realm requires it, directly or through others; kits that offer no tools and no shell (bases, only built from) aren't listed. The worker uses <code>docker</code>, then <code>podman</code> (or <code>C6_CONTAINER_RUNTIME</code>). A build's context is a temporary folder, removed after; builds stop after 30 minutes. Runs are as the owner of the session's folder (nobody if that's root), with <code>HOME=/tmp</code>, 512 processes and a 512 MB /tmp; interrupting a call or reaching the timeout kills the container. Path arguments that leave the session's folder are refused, as are kits in sessions working over SSH. A kit with no tools is allowed (a base to build from).</p>
+</li>
+<li>
+<p><strong>Libraries,</strong> added to the requiring realm, and <strong>apps requiring apps:</strong> exports, the template grant, <code>template_start</code>.
+<em>As built:</em> libraries and the template grant came with step 1. <code>template_start</code> asks the head, which checks for an operations grant <code>template:&lt;name&gt;</code> from that realm to the session's (each use is logged on the grant); the started sessions carry the label <code>started-by:&lt;session id&gt;</code>.</p>
+</li>
+<li>
+<p><strong><code>decks-render</code>:</strong> a kit with headless Chromium, python-pptx and open fonts, offering <code>screenshot</code>, <code>pdf</code> and <code>pptx</code>. <strong>decks</strong> requires it, so a worker needs only a container runtime.
+<em>As built:</em> <code>examples/packages/decks-render.json</code>, in the <code>PackageIn</code> form with <code>text_files</code> (a Dockerfile and <code>render.py</code> written as text). Tools <code>pdf</code>, <code>slides</code>, <code>slide {n}</code>, <code>pptx</code> (a picture per slide; editable PowerPoint is later). Chromium runs with <code>--no-sandbox</code> inside the container, which is the sandbox. decks 1.1.0 requires it and its skills and templates use <code>kit_run</code>. Built and checked on Docker Desktop (2026-10-14): the image is about 1.5 GB and its first build takes about a minute; a three-slide deck renders to PNGs, PDF and PPTX in seconds under the sandbox. Chromium only takes exact font names (apart from a few metric stand-ins such as Arial → Liberation Sans), so themes name the open fonts in the kit (Inter, P052 for Palatino). The test <code>decks_render_kit_renders_a_deck</code> runs only with <code>C6_TEST_DECKS_RENDER=1</code>.</p>
+</li>
+<li>
+<p><strong>Later:</strong> remote registries and sync, network allow-lists by host, Apple's <code>container</code>, WASM kits for workers without a runtime, GPU.</p>
+</li>
+</ol>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/packages.md">docs/packages.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-words">1. Words</a></li><li><a href="#2-the-manifest">2. The manifest</a></li><li><a href="#3-requiring-packages">3. Requiring packages</a></li><li><a href="#4-permissions-approval-and-the-sandbox">4. Permissions, approval and the sandbox</a></li><li><a href="#5-workers">5. Workers</a></li><li><a href="#6-agents">6. Agents</a></li><li><a href="#7-the-registry-and-the-ui">7. The registry and the UI</a></li><li><a href="#8-build-order">8. Build order</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

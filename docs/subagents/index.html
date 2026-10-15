@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Subagents · carbon6</title><meta name="description" content="Subagents as sessions of their own: watched live, stopped, and continued with their history."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/subagents/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Subagents · carbon6"><meta property="og:description" content="Subagents as sessions of their own: watched live, stopped, and continued with their history."><meta property="og:url" content="https://carbon6.dev/docs/subagents/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/" aria-current="page">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Subagents — Design</h1><div><p>A subagent becomes a session like any other: it has an actor, a log, a place in its parent's transcript you can watch live, and a reply box. Stopping one, or losing it to a worker restart, leaves its work in place. The agent that started it, or you, can read that work and continue the same subagent with its history instead of starting over. Subagents can start subagents of their own.</p>
+<h2 id="1-where-things-stand">1. Where things stand</h2>
+<p>What exists today (native sessions):</p>
+<ul>
+<li><strong>The log is kept.</strong> <code>Task</code> → <code>subagent::Runner::run</code> creates a child session in the worker journal (<code>SessionStarted.parent_session_id</code> / <code>parent_call_id</code>). Its events sync like any session's. The head creates its row on the first event (<code>store::create_subagent_session</code>) in the parent's realm, with the parent's labels. The child's cost counts toward the parent, one level deep (<code>usage::cost_of</code>).</li>
+<li><strong>But it is not an actor.</strong> The child's turn runs inside the parent's tool call, with an in-memory <code>Conversation</code> and one turn. It has no inbox and gets no <code>Checkpoint</code>. Once that call returns, nothing can run it again.</li>
+<li><strong>The head refuses it as a session.</strong> Messages ("run once"), rewinds, side chats and <code>Restore</code> are all refused for <code>parent_call_id</code> sessions.</li>
+<li><strong>The UI only links to it.</strong> The Task card has an <em>open subagent</em> link, which shows up once the child's row exists. The link opens the child in its own column, with no reply box. Nothing in the parent's transcript shows the child's progress.</li>
+<li><strong>Interrupts lose the thread.</strong> Stopping the parent turn cancels the child. <code>run_turn</code> ends <code>Interrupted</code>, the runner returns <code>Err("ended without a report")</code>, and the parent's tool result is a bare error. Only a successful report carries <code>[subagent session &lt;id&gt;]</code>. So after an interrupt, the parent model can't point to the work that was done.</li>
+<li><strong>Restarts mislabel the work.</strong> <code>recover()</code> closes the child's open turn (<code>WorkerRestarted</code>), so its log survives. The parent's background notice still says "lost … its output is gone", which isn't true.</li>
+<li><strong>The parent log has no record of the child.</strong> <code>SubagentSpawned</code> is listed in architecture §5 but was never built. The only link is the child's <code>SessionStarted</code>, so the parent can't show a child before the head has ingested it.</li>
+<li><strong>No nesting.</strong> A subagent's tools are its parent's minus <code>Task</code>.</li>
+<li><strong>Claude Code sessions drop subagents.</strong> Stream messages with a <code>parent_tool_use_id</code> are thrown away (<code>claude_code.rs</code>).</li>
+</ul>
+<h2 id="2-goals">2. Goals</h2>
+<ol>
+<li>You can watch a subagent from the parent session, live, inline, the way side chats work.</li>
+<li>A stopped, failed or lost subagent leaves its partial work readable by you and by its parent agent.</li>
+<li>The parent agent or you can continue the same subagent with its history: to resume it after an interrupt, to send a finished one a follow-up, or to steer one that is running.</li>
+<li>Subagents can start subagents, within limits you set.</li>
+<li>Claude Code sessions show their subagents too, read-only.</li>
+</ol>
+<p>Not a goal: rewinding a subagent.</p>
+<h2 id="3-words">3. Words</h2>
+<ul>
+<li><strong>Subagent:</strong> a child session started by a tool call, rather than by you branching off (that is a side chat). It is still <code>parent_id</code> plus <code>parent_call_id</code>. Its parent may itself be a subagent. The <strong>main agent</strong> is the top-level session at the root of the tree.</li>
+<li><strong>Delegation:</strong> one request that starts a turn in a subagent. It comes from a <code>Task</code> call (the first one), a <code>SendMessage</code> call from its parent, or a message from you. Each delegation causes one turn.</li>
+<li><strong>Report:</strong> the final assistant text of a delegation's turn, if that turn completed.</li>
+<li><strong>Outcome:</strong> how a delegation's turn ended: <code>completed</code>, <code>interrupted</code>, <code>failed</code> or <code>lost</code> (the existing <code>TurnEndReason</code>).</li>
+<li><strong>Waiting call:</strong> a foreground <code>Task</code> or <code>SendMessage</code> call in the parent that has not returned yet. It waits on exactly one delegation.</li>
+</ul>
+<h2 id="4-data-model">4. Data model</h2>
+<h3 id="worker-the-subagent-is-an-actor">Worker: the subagent is an actor</h3>
+<p><code>Runner::run</code> no longer runs the loop itself. It asks the session manager for a child actor and talks to it like any other session:</p>
+<ol>
+<li><strong>Create.</strong> Create the child with a <code>CreateSession</code> that carries a new <code>Delegation</code> field: parent session, parent call, the named agent (its prompt, allowed tools and model, as <code>agent_json</code>) and <code>depth</code> (the parent's plus one; the main agent is 0). The journal stores this spec, so a reload rebuilds the same tools: <code>build_tools</code>, filtered by the agent, with the agent's system prompt and model. <code>Task</code> and <code>SendMessage</code> are included while <code>depth &lt; max_subagent_depth</code> (§7). That fixes the problem that today's journaled spec is the parent's.</li>
+<li><strong>Send input.</strong> Send the prompt as <code>PendingInput</code>. It now has a <code>delegated_by</code> call id and an optional <code>on_turn_end: oneshot&lt;Outcome&gt;</code>.</li>
+<li><strong>Wait or don't.</strong> Foreground: wait for the oneshot. Background: register the task as today and let the oneshot finish it.</li>
+<li><strong>Cascade interrupts.</strong> If the parent's cancel token fires, the runner sends <code>Interrupt</code> to the child actor; it does not just drop a future. A subagent interrupted this way interrupts its own foreground subagents the same way, so a stop runs down the tree.</li>
+</ol>
+<p>The child then gets everything an actor already has for free: inbox delivery at model boundaries, reload from the journal, history repair for tool calls that never got a result, <code>Restore</code>, and its own subagent runner. Nesting therefore needs no separate code path. It takes no <code>Checkpoint</code>s: subagents are not rewound, and the parent's checkpoints cover the same folder.</p>
+<h3 id="events">Events</h3>
+<table><thead><tr><th>Event</th><th>Log</th><th>New fields</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>SubagentSpawned</code></td><td>parent</td><td><code>call_id</code>, <code>child_session_id</code>, <code>agent</code>, <code>description</code>, <code>background_task_id</code></td><td>Written before the child starts. The parent's log now links to its children itself, so the UI can show a thread at once and recovery knows which calls were delegations.</td></tr>
+<tr><td><code>UserMessage</code></td><td>child</td><td><code>+ delegated_by</code> (a parent call id, or empty when you sent it), <code>+ wake</code></td><td>Each turn of the child is tied to its delegation. The UI marks turns "from its parent" or "from you"; <code>wake</code> is what you chose for reporting back (§6).</td></tr>
+<tr><td><code>SessionStarted</code></td><td>child</td><td><code>+ agent</code>, <code>+ depth</code></td><td>Shown in the UI; used again on reload.</td></tr>
+</tbody></table>
+<p>No new turn-end reasons are needed.</p>
+<h3 id="head">Head</h3>
+<ul>
+<li><strong>Migration:</strong> <code>sessions.agent</code> (the named agent, <code>''</code> for general-purpose), <code>sessions.end_reason</code> (the last <code>TurnEnded</code> reason, set at ingest), <code>sessions.root_id</code> (the top-level session, set at creation, <code>NULL</code> for a top-level one; migration 0040 fills it in for existing side chats and subagents) and <code>sessions.observed</code> (§8). With these, thread headers and the subagents strip (§9) can show states without loading each child's log, and whole trees can be queried without recursion.</li>
+<li><strong><code>GET /sessions/{id}/children</code></strong> returns these columns, plus the <code>delegated_by</code> call of each child turn. <code>?tree=1</code> returns the whole subtree by <code>root_id</code>.</li>
+<li><strong>Lift the refusals.</strong> Messages to subagent sessions are allowed (§6). Side chats on subagents are allowed too; they're seeded from the child's log as usual. <code>Restore</code> is allowed, so a trimmed child can still be resumed. Rewind stays refused, since it would change what the parent was already told.</li>
+<li><strong>Trees, not one level.</strong> Everything that follows <code>parent_id</code> one step today follows the whole tree:
+<ul>
+<li>cost (<code>usage::cost_of</code>), so a session's cost includes every level below it;</li>
+<li>find in session, which today covers side chats only;</li>
+<li>search's <code>open=</code> chain, which can now mix side chats and subagents (a side chat on a subagent of a subagent);</li>
+<li>archiving, where a parent archives its whole subtree.</li>
+</ul>
+</li>
+<li><strong>Journal trimming</strong> drops a child only once its root is trimmed.</li>
+</ul>
+<h2 id="5-lifecycle">5. Lifecycle</h2>
+<pre><code>          Task / SendMessage call, or your message
+                        │
+         ┌──────────► running ◄───────────────┐
+         │              │                     │  continue: SendMessage from
+         │      ┌───────┼────────┬─────────┐  │  its parent, or your reply /
+         │      ▼       ▼        ▼         ▼  │  Resume
+         │  completed interrupted failed  lost┘
+         │      │   (you or parent (error) (worker restarted)
+         │      │    stopped it)
+         │      └── report → waiting call, or notice to its parent
+         │
+   new delegation
+</code></pre>
+<p>A subagent is idle between delegations, like any session. Its state in the UI is its status (<code>running</code> or idle) plus <code>end_reason</code>.</p>
+<h3 id="what-the-parent-gets">What the parent gets</h3>
+<ul>
+<li>
+<p><strong>Completed (foreground):</strong> the report, as today, with <code>[subagent &lt;id&gt;]</code> always appended.</p>
+</li>
+<li>
+<p><strong>Anything else (foreground):</strong> a tool result that isn't a bare error. It carries the outcome, the subagent's id, a digest of its partial work, and how to continue. For example:</p>
+<pre><code>&lt;subagent id="0199…" status="interrupted" by="user" turns="1" tool_calls="14" elapsed="2m 10s"&gt;
+Last message: "Found the three call sites; now updating parser.rs…"
+Changed: crates/c6-head/src/parser.rs, crates/c6-head/src/store.rs
+Errors: 1 (cargo check: unresolved import)
+Subagents: 0199…a2 (interrupted), 0199…b7 (completed)
+&lt;/subagent&gt;
+</code></pre>
+<p>Then comes the line saying how to continue, which is an editable prompt (§10). The digest is built from the child's events:</p>
+<ul>
+<li>the last assistant text;</li>
+<li>its write and edit tool calls (exact paths, not a git diff, so the parent's and siblings' edits don't show up);</li>
+<li>failed calls;</li>
+<li>the subagents it started and their states.</li>
+</ul>
+<p>It is mechanism output, not instructions.</p>
+</li>
+<li>
+<p><strong>Background:</strong> the same text, in the <code>task-notification</code> notice.</p>
+</li>
+<li>
+<p><strong>Lost (worker restart):</strong> the existing <code>lost</code> handling changes in two ways.</p>
+<ul>
+<li>Background tasks say the log is kept and can be resumed (no more "its output is gone").</li>
+<li>When an actor reloads, any <code>SubagentSpawned</code> whose call has no <code>ToolResult</code> gets one written before its open turn is closed, with the digest and <code>status="lost"</code>. Each level does this for its own calls. The model then sees the id, not the generic repair placeholder.</li>
+</ul>
+</li>
+</ul>
+<h3 id="interrupts">Interrupts</h3>
+<table><thead><tr><th>You do</th><th>Foreground subagents</th><th>Background subagents</th></tr></thead><tbody>
+<tr><td>Stop the <strong>main</strong> turn (Esc)</td><td>Interrupted too, all the way down. Each one's partial result is recorded as its call's result.</td><td>Keep running (their own token, as today).</td></tr>
+<tr><td>Stop a <strong>subagent</strong> (its thread's Stop)</td><td>Its turn ends, and so do its own foreground subagents. The waiting call returns <code>interrupted</code>, and the parent carries on and decides what to do.</td><td>Same as the kill tool or <code>StopTask</code>; the notice says <code>stopped_by_user</code>.</td></tr>
+<tr><td><strong>Kill tool</strong> from the parent model</td><td>n/a</td><td>Interrupts the child's turn; its log is kept and it can be resumed.</td></tr>
+</tbody></table>
+<p>Stopping one subagent is the main new control: you can stop one that has gone off track without throwing away its parent's turn.</p>
+<h2 id="6-continuing-a-subagent">6. Continuing a subagent</h2>
+<h3 id="from-its-parent-sendmessage">From its parent: <code>SendMessage</code></h3>
+<p>A new tool, <code>SendMessage</code> in the Claude tool set and <code>send_message</code> in the others, with <code>to</code> (a subagent id) and <code>message</code>:</p>
+<ul>
+<li><strong>The subagent is idle:</strong> the message starts a new delegation, and its whole conversation continues with the same tools, agent and model. It also keeps the same cache key, so continuing it soon after reuses the prompt cache. The call waits for the report, unless <code>run_in_background</code> is set (then it is tracked like a background <code>Task</code>).</li>
+<li><strong>The subagent is running in the background:</strong> the message goes into its inbox and arrives at its next model boundary. The call returns at once. This is how a parent steers its own background subagents.</li>
+<li><strong>Allowed targets:</strong> an agent can message only its own children (<code>parent_id</code> = caller). Messaging any other session is refused.</li>
+</ul>
+<p><code>bash_output</code> / <code>BashOutput</code> take a subagent id (a background task id or a session id). They return the digest above plus any new events since the last read, so a parent can check on a background subagent without waiting for it.</p>
+<p>Why a separate tool and not a <code>resume</code> parameter on <code>Task</code>:</p>
+<ul>
+<li><code>Task</code> stays "start one"; its <code>subagent_type</code> and <code>description</code> would mean nothing on a resume.</li>
+<li>A separate tool can steer a running subagent, which a <code>Task</code> resume would have to refuse.</li>
+<li>Weaker models misuse overloaded schemas less often.</li>
+<li>Current Claude Code continues agents with a separate <code>SendMessage</code> tool, so Claude models expect this shape.</li>
+</ul>
+<h3 id="from-you">From you</h3>
+<p>A subagent's thread (§9) has a reply box and, after an interrupted, failed or lost turn, a <strong>Resume</strong> button. Resume sends the resume prompt.</p>
+<ul>
+<li>
+<p><strong>While a call is waiting on the subagent,</strong> your message goes into the subagent's inbox. It arrives at the next model boundary, so you are steering it, and the parent keeps waiting for the report.</p>
+</li>
+<li>
+<p><strong>When no call is waiting,</strong> your message starts a new delegation that you own. When that turn ends, its report goes to the subagent's parent as a <code>task-notification</code> notice:</p>
+<ul>
+<li><strong>If the parent is running,</strong> the notice arrives at its next model boundary. It is acting, so it needs to know what changed.</li>
+<li><strong>If the parent is idle,</strong> the notice waits and arrives with the parent's next input. It doesn't start a turn by itself.</li>
+<li><strong>With <em>Wake the parent</em> ticked,</strong> an idle parent starts a turn on the notice right away. This counts toward the hourly auto-turn limit.</li>
+</ul>
+<p>The parent never acts on stale information, and nothing runs behind your back unless you ask for it. To only <em>ask</em> a subagent something, use a side chat on it (↳ Ask); side chats don't report back.</p>
+</li>
+<li>
+<p><strong>In a tree,</strong> the rule repeats one level at a time. A report from a woken parent goes to its own parent under the same rule, and <code>wake</code> carries up only as far as you ticked it (stored on the <code>UserMessage</code>).</p>
+</li>
+</ul>
+<h3 id="history-after-an-interrupt">History after an interrupt</h3>
+<p>This comes from <code>history_from_events</code>. A tool call that was cut off gets its repaired "interrupted" result, so the model sees exactly where it stopped.</p>
+<h2 id="7-nesting">7. Nesting</h2>
+<ul>
+<li>
+<p><strong>Limits (settings):</strong></p>
+<ul>
+<li><code>max_subagent_depth</code>: the main agent is depth 0, its subagents depth 1, and so on.</li>
+<li><code>max_running_subagents</code> per tree: the number running at once below one top-level session.</li>
+</ul>
+<p>At the depth limit, the subagent isn't given <code>Task</code> or <code>SendMessage</code>. Over the running limit, <code>Task</code> returns an error saying how many are running. A named agent whose tool list leaves out <code>Task</code> can't nest, whatever its depth.</p>
+</li>
+<li>
+<p><strong>Inheritance:</strong></p>
+<ul>
+<li>Every level gets the root's tool hooks (not Stop), secrets, publisher, memory and notice sinks, as <code>subagent::Parent</code> does now.</li>
+<li>Every level stays in the root's realm and keeps its labels.</li>
+<li>The routing rule's <code>subagent_model</code> applies at every depth (a named agent's model still wins).</li>
+</ul>
+</li>
+<li>
+<p><strong>Who talks to whom:</strong></p>
+<ul>
+<li>Reports and notices go up one level.</li>
+<li><code>SendMessage</code> goes down one level.</li>
+<li>You can reach any level from the UI.</li>
+</ul>
+</li>
+<li>
+<p><strong>Auto-turn chains.</strong> A report bubbling up through idle subagents could set off a chain of turns. That only happens with <em>Wake</em> ticked; the per-session hourly auto-turn limit then applies at each level.</p>
+</li>
+</ul>
+<h2 id="8-claude-code-sessions">8. Claude Code sessions</h2>
+<p>The worker turns <code>parent_tool_use_id</code> traffic into an <strong>observed</strong> child session instead of dropping it. On the first message for a <code>Task</code> tool_use, it creates a child (<code>SessionStarted.parent_call_id</code> = that tool_use id, title from its description) and appends assistant and tool-result events to it. Nested ones nest the same way, by their own <code>parent_tool_use_id</code>.</p>
+<p>The UI shows it as a read-only thread: no reply box, no Resume, no Stop. Claude Code owns that subagent's lifecycle, and its own agent can continue it. The head sets <code>sessions.observed</code>, so it refuses messages to these sessions.</p>
+<h2 id="9-ui">9. UI</h2>
+<h3 id="the-subagent-thread">The subagent thread</h3>
+<p>A <code>Task</code> call's card turns into a thread under the call, like a side chat but in violet:</p>
+<pre><code>● Task  Find all callers of parse_spec   (code-explorer · haiku-4.5)   ⏸ interrupted · 14 calls · 2m10s · $0.04   ↗
+  │ ▸ Read crates/c6-head/src/store.rs
+  │ ▸ Grep "parse_spec("  → 3 files
+  │ ● Task  Check the tests   (general · haiku-4.5)  ✓ done · 6 calls      ← a nested thread
+  │ Found the three call sites; now updating parser.rs…
+  │ ▸ Edit parser.rs  ✕ cargo check failed
+  │ ─ interrupted by you ─
+  │ [ Resume ]  [ Reply to the subagent…                      ]  ☐ Wake the parent
+</code></pre>
+<ul>
+<li><strong>Header:</strong> the named agent, the description, the model, a state pill (● running, ✓ done, ⏸ interrupted, ✕ failed, ⚠ lost), tool calls, elapsed time and cost (its subtree included). ↗ opens the subagent in its own column.</li>
+<li><strong>Live tail while it runs:</strong> a foreground subagent opens showing its last few events (a "peek"). Clicking the header expands the full transcript; the open/closed choice is saved per thread, as for side chats. Tool calls start collapsed. The prompt isn't repeated, since the Task card above already shows it.</li>
+<li><strong>When it completes,</strong> the thread collapses to the header and the report shows as the call's result. Turns are labelled by delegation: "from its parent (this call)", "continued by its parent ↗ call", "from you".</li>
+<li><strong>A <code>SendMessage</code> call</strong> gets a small card ("↻ continued <em>Find all callers…</em>", or "→ sent to <em>…</em> while running") that scrolls to the subagent's thread. The new turn appears there, so one subagent stays in one place.</li>
+<li><strong>Nested subagents</strong> are threads inside threads. Beyond two levels of indentation, a nested subagent shows as a one-line row (header only) that opens in its own column, so deep trees don't squeeze the page.</li>
+<li><strong>Controls:</strong> Stop while it runs (it stops the subagent's own foreground subagents too); Resume after a turn that did not complete; the reply box at any time; ↳ Ask (a side chat on the subagent) on its messages. Observed (Claude Code) threads have none of these.</li>
+</ul>
+<h3 id="the-subagents-strip">The subagents strip</h3>
+<p>This answers the open item in architecture §17 about rendering a session with many subagents. Next to <code>RunningTasks</code>, the session header gets a <strong>Subagents</strong> pill with counts for the whole tree (<code>3 running · 5 done · 1 interrupted</code>). It opens the tree: an indented list showing each subagent's state, agent, description, elapsed time and cost. Clicking one scrolls to its thread, expanding the threads above it. Several <code>Task</code> calls in one message show as a stack of compact one-line threads, so a fan-out of 8 doesn't push the conversation off screen.</p>
+<h3 id="a-subagents-own-page">A subagent's own page</h3>
+<p>The breadcrumb shows the chain, for example "<em>main session</em> › <em>Find all callers…</em> › <em>Check the tests</em>". Each step jumps to the call that started the next. The page has the reply box, with the same rules as the thread's, and its own subagents strip for its subtree.</p>
+<h2 id="10-settings-no-new-strings-in-code">10. Settings (no new strings in code)</h2>
+<p><strong>Prompts</strong> go in Settings → Prompts, with shipped defaults, next to <code>session.subagent</code>:</p>
+<ul>
+<li><code>session.subagent_resume</code>: what the subagent is told on Resume ("You were stopped partway through. Your work so far is above. Continue the task…").</li>
+<li><code>session.subagent_partial</code>: the line after the digest in the parent's tool result (how to continue with <code>SendMessage</code>, or that it can start fresh).</li>
+<li>The compaction prompts gain a line asking to keep subagent ids that may need continuing. This edits the existing editable prompts, not code.</li>
+</ul>
+<p><strong>Limits</strong> go in Settings → General: <code>max_subagent_depth</code> and <code>max_running_subagents</code>.</p>
+<h2 id="11-edge-cases">11. Edge cases</h2>
+<ul>
+<li><strong>The parent rewinds past a Task call.</strong> The subagent stays (the logs are append-only), folded with the rewound events. Only you can continue it, since the parent no longer knows about it.</li>
+<li><strong>Edits run at the same time.</strong> Subagents still share the root's work tree, at any depth. Nothing changes here, but the digest lists only the subagent's own edits.</li>
+<li><strong><code>SendMessage</code> to a subagent the caller is waiting on.</strong> This can't happen, because a waiting caller isn't running. Two calls in one message that target the same idle subagent are refused for the second one ("already running").</li>
+</ul>
+<h2 id="12-steps">12. Steps</h2>
+<p>As built: all six steps on 2026-10-14.</p>
+<ul>
+<li>A background subagent's session is found through <code>SubagentSpawned.background_task_id</code>, so <code>BackgroundTask</code> gained no field.</li>
+<li>A reloaded or restored subagent keeps the tools its <code>SessionStarted</code> lists, so <code>Delegation.agent_json</code> is informational.</li>
+<li>Without its parent on the worker (both were trimmed), a restored subagent runs with hooks of its own.</li>
+<li>An agent may message a subagent that has a <code>SubagentSpawned</code> in its own log, by session id or background task id.</li>
+<li>Resume is <code>POST /sessions/{id}/resume</code>: it sends the realm's <code>session.subagent_resume</code> prompt as a message with <code>command: "resume"</code>, and only after a turn that was interrupted, failed or lost.</li>
+<li>The limits are the head's <code>subagent-limits</code> setting (Settings → Agents), sent in each spec as <code>max_subagent_depth</code> and <code>max_running_subagents</code>. The running limit counts delegations a parent waits on or runs in the background (not your own messages to subagents) per top-level session, on the worker.</li>
+<li>Tree-wide on the head: cost (<code>usage::cost_of</code>, and the usage report's per-session rows), archiving, <code>GET /sessions/{id}/children?tree=1</code>, find in session (a subagent's matches sort at its <code>SubagentSpawned</code> event) and search links (<code>OpenIn.side_chats</code> lists side chats and subagents to expand).</li>
+<li>The UI learns that a subagent started or stopped working, without an event in the parent, from <code>Session.subagents_running</code> in the live session list (counted per tree by <code>root_id</code>); transcripts and the ◆ list refresh their children when it changes. A collapsed thread follows the subagent's stream only while it runs.</li>
+<li>Claude Code's subagents: <code>claude_code::Mapper</code> creates a mirror session the first time a message carries a <code>parent_tool_use_id</code>, under the session (or mirrored subagent) whose call it is, and logs <code>SubagentSpawned</code> there. It records the subagent's task, whole messages (not partial deltas) and tool results, and ends its single turn when the call's result arrives, or as interrupted (or failed) if the process stops first. Its spec has <code>Delegation.observed</code>; the head sets <code>sessions.observed</code> (migration 0041) from its <code>claude_code</code> profile and refuses messages, Resume and restores for it.</li>
+<li>Threads show the subagent's <code>SessionStarted</code> line (its tools and prompt matter for a named agent) and skip nothing else; the peek shows the last three steps. A subagent uses its parent's <em>live</em> tool hooks and policies, so calls held for approval wait in the parent as before; <code>SessionManager</code> keeps each actor's <code>SessionTools</code> for this and loads the parent first when a subagent is loaded after a restart. Secrets go by the root session (<code>Delegation.root_session_id</code>), since a new child's row may not be on the head yet.</li>
+</ul>
+<ol>
+<li><strong>Actor-backed subagents.</strong> <code>Delegation</code> in <code>CreateSession</code>, <code>SubagentSpawned</code>, the child built and reloaded as an actor, interrupts cascaded through the actor. Depth limit 1, so visible behavior stays as today. Tested by killing the worker mid-subagent and reloading.</li>
+<li><strong>Partial results.</strong> The digest; foreground and background results for every outcome; recovery writing results for dangling delegations; the corrected <code>lost</code> text; the head columns.</li>
+<li><strong>Continuing.</strong> <code>SendMessage</code>, <code>bash_output</code> for subagents, the head accepting input (with <code>wake</code>), <code>Restore</code> and side chats for children, the prompts.</li>
+<li><strong>Nesting.</strong> <code>Task</code> and <code>SendMessage</code> for children under the limits, tree-wide cost, find in session, search chains and archiving.</li>
+<li><strong>UI.</strong> Threads with live peek, nested threads, Stop, Resume, the reply box, the subagents strip, the breadcrumb.</li>
+<li><strong>Claude Code observed children.</strong></li>
+</ol>
+<h2 id="13-decisions-settled-2026-10-14">13. Decisions (settled 2026-10-14)</h2>
+<ol>
+<li><strong>Stopping the main turn</strong> stops its foreground subagents, all the way down.</li>
+<li><strong>Messaging a subagent that a call is waiting on</strong> steers it; the parent keeps waiting.</li>
+<li><strong>Reporting back:</strong> your follow-ups always report to the parent. A running parent hears at its next step; an idle one hears with its next input, unless you tick <em>Wake the parent</em>.</li>
+<li><strong>Continuing:</strong> a separate <code>SendMessage</code> tool rather than <code>resume</code> on <code>Task</code>.</li>
+<li><strong>Claude Code subagents</strong> are shown read-only.</li>
+<li><strong>Subagents can start subagents.</strong></li>
+<li><strong>Default limits:</strong> <code>max_subagent_depth</code> = 3 and <code>max_running_subagents</code> = 16 per tree.</li>
+</ol>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/subagents.md">docs/subagents.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-where-things-stand">1. Where things stand</a></li><li><a href="#2-goals">2. Goals</a></li><li><a href="#3-words">3. Words</a></li><li><a href="#4-data-model">4. Data model</a></li><li><a href="#5-lifecycle">5. Lifecycle</a></li><li><a href="#6-continuing-a-subagent">6. Continuing a subagent</a></li><li><a href="#7-nesting">7. Nesting</a></li><li><a href="#8-claude-code-sessions">8. Claude Code sessions</a></li><li><a href="#9-ui">9. UI</a></li><li><a href="#10-settings-no-new-strings-in-code">10. Settings (no new strings in code)</a></li><li><a href="#11-edge-cases">11. Edge cases</a></li><li><a href="#12-steps">12. Steps</a></li><li><a href="#13-decisions-settled-2026-10-14">13. Decisions (settled 2026-10-14)</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>The OS · carbon6</title><meta name="description" content="Realms, grants, collections, decisions, triggers, series and views: apps built from configuration alone."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/os/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="The OS · carbon6"><meta property="og:description" content="Realms, grants, collections, decisions, triggers, series and views: apps built from configuration alone."><meta property="og:url" content="https://carbon6.dev/docs/os/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/" aria-current="page">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>carbon6 as an operating system — Design</h1><div><p>Status: built, steps 0–10 of the build order (section 9), on 2026-10-14. The "As built" sections record what was built and where it differs from the design.</p>
+<h2 id="1-goals">1. Goals</h2>
+<p>carbon6 should work like an operating system for agents. It provides general primitives, and <strong>apps</strong> are built from them with configuration only: prompts, schemas, triggers and views. An app such as a service factory or a personal CRM behaves the way it does because of its configuration, not because carbon6 has code for it.</p>
+<ul>
+<li><strong>The rule:</strong> if an app needs code in carbon6, a primitive is missing. Add the primitive, never the app.</li>
+<li><strong>Why:</strong> follow-through (kits, trackers, playbooks) was built as features for one use case, and was removed on 2026-10-13 because it didn't land. The general versions of those ideas are records, triggers, decisions and app packages (8).</li>
+<li><strong>Isolation:</strong> many apps run side by side in <strong>realms</strong>. Information moves between realms only through flows you declare, instead of everything sharing one pool.</li>
+<li><strong>Prompts are configuration.</strong> Every instruction carbon6 gives an agent is an editable default, including the ones that are still in code today: the knowledge guidance in briefs, and the prompt for a session started from an action item.</li>
+</ul>
+<p><strong>Not goals:</strong></p>
+<ul>
+<li><strong>More than one user.</strong> carbon6 stays single-user. Realms isolate apps from each other, not people.</li>
+<li><strong>Sandboxing by default.</strong> Agents' shell access stays as it is today, except for policies you configure. Realms isolate the data carbon6 manages; how far that goes on a shared machine is spelled out in 3.9.</li>
+<li><strong>A general-purpose OS.</strong> The primitives are the ones agent apps need, and no more.</li>
+</ul>
+<h2 id="2-the-model">2. The model</h2>
+<table><thead><tr><th>OS concept</th><th>carbon6</th><th>Status</th></tr></thead><tbody>
+<tr><td>Isolation</td><td><strong>Realms</strong> (3)</td><td>New</td></tr>
+<tr><td>Processes</td><td>Sessions, subagents, side chats</td><td>Exists; gains a realm</td></tr>
+<tr><td>Machines</td><td>Workers, available to some realms or dedicated to one (3.2)</td><td>Exists; gains availability</td></tr>
+<tr><td>Programs</td><td>Skills, agents, commands, templates, workflows, hooks, MCP servers</td><td>Exists; realm-scoped (4.6)</td></tr>
+<tr><td>Files</td><td>Workers' file systems, session outputs</td><td>Exists</td></tr>
+<tr><td>Knowledge</td><td>The memex: items, graph, search, notes, trails, facts</td><td>Exists; partitioned by realm (4.7)</td></tr>
+<tr><td>Structured storage</td><td><strong>Collections</strong> of typed records (4.1)</td><td>New</td></tr>
+<tr><td>Asking the user</td><td><strong>Decisions</strong> (4.2)</td><td>New; replaces approvals, action items and questions</td></tr>
+<tr><td>Events and scheduling</td><td><strong>Triggers</strong> (4.3)</td><td>Generalizes automations</td></tr>
+<tr><td>Numbers over time</td><td><strong>Series</strong> (4.4)</td><td>New; usage and budgets move onto it</td></tr>
+<tr><td>Screens</td><td><strong>Views</strong> (4.5)</td><td>New</td></tr>
+<tr><td>Packages</td><td><strong>Apps</strong> (5)</td><td>New</td></tr>
+<tr><td>Permissions</td><td>Realms, grants, policies, secrets, budgets, realm-scoped API tokens</td><td>Partly exists</td></tr>
+</tbody></table>
+<h2 id="3-realms">3. Realms</h2>
+<h3 id="31-what-a-realm-is">3.1 What a realm is</h3>
+<p>A realm is a named boundary that <strong>owns</strong> objects. Every object belongs to exactly one realm. Nothing outside a realm can see what it owns, except through a grant (3.7).</p>
+<pre><code>realm(id, name, description, created_at, created_by /* you | app install */, app /* the app it was made for, if any */)
+</code></pre>
+<p>Realms and labels do different jobs:</p>
+<table><thead><tr><th></th><th>Realm</th><th>Label</th></tr></thead><tbody>
+<tr><td>How many per object</td><td>Exactly one</td><td>Any number</td></tr>
+<tr><td>Meaning</td><td>Owns it; a boundary</td><td>Describes it; used for matching</td></tr>
+<tr><td>Default</td><td>Invisible outside the realm</td><td>Visible wherever its scope reaches</td></tr>
+<tr><td>Used for</td><td>Isolation and information flow</td><td>Choosing configuration inside a realm</td></tr>
+</tbody></table>
+<p>Labels keep working as they do today, inside a realm.</p>
+<h3 id="32-what-belongs-to-a-realm-and-what-is-shared">3.2 What belongs to a realm, and what is shared</h3>
+<p><strong>Owned by a realm:</strong></p>
+<ul>
+<li>sessions and their history (side chats and subagents stay in their parent's realm);</li>
+<li>the memex's contents: items, things and links, facts, notes, trails;</li>
+<li>collections, records and series;</li>
+<li>decisions;</li>
+<li>programs: skills, agents, commands, templates, workflows, hooks, MCP servers;</li>
+<li>triggers (automations);</li>
+<li>views;</li>
+<li>secrets, policies, budgets and memory notes.</li>
+</ul>
+<p><strong>Shared infrastructure,</strong> like hardware in an OS:</p>
+<ul>
+<li><strong>Workers:</strong> each worker is either available to a list of realms, or dedicated to one. A session can only start on a worker its realm may use.</li>
+<li><strong>Model connections and routes:</strong> each is available to a list of realms (all, by default).</li>
+<li><strong>The memex service:</strong> one service, with its data partitioned by realm.</li>
+<li><strong>The head:</strong> it enforces everything (3.8).</li>
+<li><strong>An overall budget cap,</strong> above the realms' own budgets.</li>
+</ul>
+<h3 id="33-root-home-and-commons">3.3 Root, home and commons</h3>
+<ul>
+<li><strong>root</strong> holds carbon6's own administration: workers, connections, sign-in, API tokens, realms and grants. It also holds the <strong>defaults every realm inherits</strong>: base skills, policies, the system prompts and the briefing guidance. Sessions don't run in root, except the assistant's administration conversations (3.6).</li>
+<li><strong>home</strong> is where everything that exists today moves (3.10), and it's the default realm for new sessions. Your mail, calendar, contacts and photos live here.</li>
+<li><strong>commons</strong> holds knowledge meant for every realm, such as facts about your infrastructure. Realms publish into it on purpose (3.7); nothing arrives there by default.</li>
+</ul>
+<p><strong>Inheritance:</strong> configuration flows down from root. A realm can override what it inherits: a skill, agent or command with the same name and labels in the realm wins, and policies from root apply before the realm's own. <strong>Data never flows up on its own.</strong></p>
+<p><strong>Realms are flat:</strong> there are no sub-realms. This is easier to reason about, and nesting can come later if apps need it.</p>
+<h3 id="34-labels-inside-realms">3.4 Labels inside realms</h3>
+<ul>
+<li><strong>Labels are per realm.</strong> <code>client:acme</code> in two realms is two different things in the memex's graph. If they should be the same thing, that link goes through commons (3.7).</li>
+<li><strong>Automatic labels</strong> (<code>worker:</code>, <code>repo:</code>, <code>folder:</code>, <code>model:</code>) work in every realm as they do today.</li>
+<li><strong>"Applies to"</strong> matches labels within the realm, as today.</li>
+</ul>
+<h3 id="35-sessions">3.5 Sessions</h3>
+<ul>
+<li><strong>One realm per session,</strong> chosen when it starts. The default is remembered per folder, the way labels are, so a folder used for the factory starts factory sessions.</li>
+<li><strong>No moving.</strong> A session can't move to another realm. Its data can be copied through a grant, and the copy carries where it came from.</li>
+<li><strong>What a session sees:</strong> its brief, search results, facts, records, decisions, secrets and tools all come from its realm, plus whatever grants let in.</li>
+</ul>
+<h3 id="36-the-assistant">3.6 The assistant</h3>
+<ul>
+<li><strong>One per realm.</strong> It can do what the UI can do inside that realm.</li>
+<li><strong>Administration</strong> (workers, connections, realms, grants, app installs) runs in root, and only when you open it there.</li>
+<li>An assistant never acts in another realm. It may suggest a grant, which you approve (4.2).</li>
+</ul>
+<p><strong>As built (step 8):</strong></p>
+<ul>
+<li><strong>The realm:</strong> the assistant works in the realm you're looking at when you open it ("All realms" is root).</li>
+<li><strong>What it may do:</strong> its catalog calls go through the same admission as that realm's API token, so it reaches only that realm's data, and administration stays in root.</li>
+<li><strong>Its instructions</strong> are the <code>assistant.base</code> prompt, overridable per realm, which now names the realm. Its memex calls go to that realm's knowledge, and its compaction prompt is the realm's.</li>
+</ul>
+<h3 id="37-grants-information-flow-between-realms">3.7 Grants: information flow between realms</h3>
+<p>A grant is the only way data crosses a realm boundary:</p>
+<pre><code>grant(id, from_realm, to_realm,
+      scope /* a collection (with an optional filter), a memex kind or saved query, a series, or named operations */,
+      mode /* read | append | snapshot | call */,
+      expires_at?, created_at, note)
+</code></pre>
+<table><thead><tr><th>Mode</th><th>Means</th></tr></thead><tbody>
+<tr><td>read</td><td>The other realm can query what's in scope, live.</td></tr>
+<tr><td>append</td><td>The other realm can add to what's in scope, but not change or delete it.</td></tr>
+<tr><td>snapshot</td><td>A one-time copy.</td></tr>
+<tr><td>call</td><td>The other realm can run named operations in this realm, for example sending mail from home's accounts. Each call is still subject to this realm's policies, so a send can still ask you first.</td></tr>
+</tbody></table>
+<p><strong>Guarantees:</strong></p>
+<ul>
+<li><strong>Provenance travels.</strong> Anything that crosses carries its origin realm and the grant it came through, and keeps them through later copies.</li>
+<li><strong>Every access is logged.</strong> You can see what flowed where.</li>
+<li><strong>Revoking stops future flow.</strong> It can't recall what was already copied, and the UI says so.</li>
+<li><strong>Grants mean what they say.</strong> A session that can read A and write B can copy A's data into B. So a grant is defined as "A's data may flow into B", not "B may read A". This is honest information-flow control, not a stronger promise than the system can keep.</li>
+<li><strong>Only you create grants.</strong> An agent can request one, as a decision.</li>
+</ul>
+<p><strong>Publishing to commons:</strong> a realm with an <code>append</code> grant to commons proposes items, such as facts. They wait in commons' review queue until you accept them. Every realm can read commons by default; you can turn that off per realm.</p>
+<h3 id="38-enforcement">3.8 Enforcement</h3>
+<ul>
+<li><strong>The head is the only place access is decided.</strong> Everything sessions do with carbon6 data passes through it: workers call the head over the fabric on behalf of a session, and the head looks up the session's realm.</li>
+<li><strong>The memex</strong> gets the realm and the grants' scopes with every call. They replace today's label-based scopes (memex design 2.3).</li>
+<li><strong>API tokens are scoped to realms.</strong> An integration's token reaches only its realm's data (plus that realm's grants), so the code an app writes can't read your mail.</li>
+<li><strong>Secrets</strong> are delivered only to sessions in their realm. A secret scoped to a <code>worker:</code> label still goes only to that worker.</li>
+</ul>
+<h3 id="39-what-realms-do-not-isolate">3.9 What realms do not isolate</h3>
+<ul>
+<li><strong>Files on a shared worker.</strong> Sessions are not sandboxed (1), so two realms' sessions on the same worker can read each other's files. When that matters, dedicate a worker to the realm (3.2): for example, give a factory its own VM.</li>
+<li><strong>What a model provider sees.</strong> A shared model connection sends every realm's prompts to the same provider. Making a connection available only to some realms (3.2) controls which providers a realm's data can reach.</li>
+</ul>
+<h3 id="310-moving-in">3.10 Moving in</h3>
+<ul>
+<li><strong>Your data moves into home,</strong> and so does your configuration that grants abilities: secrets, MCP servers, skills, agents, commands, hooks, templates and memory notes. A new realm doesn't inherit them unless you move them to root or share them.</li>
+<li><strong>Restrictions move into root,</strong> so every realm inherits them: policies and budget caps. A new realm is never less protected than home.</li>
+<li><strong>Memex scopes by label</strong> become label scopes inside home.</li>
+<li><strong>Until you create a second realm, nothing behaves differently.</strong> The full upgrade plan is in 13.</li>
+</ul>
+<h3 id="311-as-built-step-1">3.11 As built (step 1)</h3>
+<ul>
+<li><strong>Realms:</strong> a <code>realms</code> table in the head holds root and home. Migration <code>0028</code> gives sessions, memory notes, action items, automations, workflow runs, secrets and usage a <code>realm</code>. Everything moves to home, except the assistant's conversations, which do administration and move to root. API tokens get a <code>realm</code> that is empty for a root token, so every existing token stays a root token. Upgrade checks prove each move against the data.</li>
+<li><strong>Callers:</strong> the auth layer identifies a <code>Caller</code> for every request:
+<ul>
+<li><strong>Root callers:</strong> you, signed in (or with sign-in off), and a root token reach every realm.</li>
+<li><strong>Realm-scoped tokens:</strong> a token limited to a realm passes <code>realms::admit</code> first. It reaches its realm's sessions (and everything under a session), search, action items, memory notes, automations, template runs and the memex, each checked per object. Another realm's object answers 404. It can read workers, connections and their models, commands, the catalog, the OpenAPI document and its own realm. Everything else is administration and answers 403, including <code>/api/v1/catalog/call</code> (it would run operations as an internal call) and <code>/api/v1/live</code>.</li>
+<li><strong>Tokens and sign-in:</strong> a valid token scopes even with sign-in off.</li>
+<li><strong>Creating tokens:</strong> <code>c6h api-token --realm home</code>, or the realm selector under <strong>Settings → Sign-in → API tokens</strong>.</li>
+</ul>
+</li>
+<li><strong>Sessions:</strong>
+<ul>
+<li><strong>Where they run:</strong> a session runs in the realm it is created in: the API's <code>realm</code>, else the caller's, else home. Never root (only the assistant's conversations are there), and only in a realm that exists.</li>
+<li><strong>Inheritance:</strong> side chats and subagents take their parent's realm. Template runs, automations and workflow runs start their sessions in their own realm.</li>
+<li><strong>What a session gets:</strong> only its realm's memory notes and secrets.</li>
+<li><strong>Secret requests:</strong> a worker asks for a secret on behalf of a session (<code>secret:NAME@&lt;session&gt;</code>), and the head checks the secret is in that session's realm. A bare name, from an older worker, gets only home's secrets.</li>
+</ul>
+</li>
+<li><strong>The memex:</strong>
+<ul>
+<li><strong>Migration:</strong> <code>0007</code> gives the memex's data a <code>realm</code> (all home).</li>
+<li><strong>Every call carries a realm:</strong> the head stamps the caller's or session's realm on each call, overwriting any realm a client sends. Root keeps no knowledge, so the assistant's conversations are no longer sent to the memex. The memex refuses any realm but home.</li>
+<li><strong>Per-realm queries:</strong> queries partitioned by realm, and things keyed per realm, come with step 4, together with grants on memex data. Until then nothing crosses, because only home's data is there.</li>
+</ul>
+</li>
+<li><strong>Test databases:</strong> <code>c6h-v0027.db</code> was regenerated with an assistant conversation, so the move to root is exercised. <code>c6h-v0028.db</code> and <code>memex-v0007.db</code> hold the new shape. The <code>realms</code> integration test covers tokens, admission, sessions in realms, and secrets, memory notes and action items not crossing realms; a second realm is inserted directly for it.</li>
+</ul>
+<h3 id="312-as-built-step-4a">3.12 As built (step 4a)</h3>
+<ul>
+<li><strong>Creating realms:</strong> <code>POST /api/v1/realms</code> (id: lowercase letters, digits and <code>-</code>), rename, and delete. Only a realm that owns nothing can be deleted, and root and home stay. A new realm gets its own system collections at once.</li>
+<li><strong>Availability:</strong> workers and connections carry a <code>realms</code> list (migration <code>0032</code>; empty means every realm), set with <code>PUT /api/v1/workers/{id}/realms</code> and <code>…/connections/{id}/realms</code>. A session cannot start on a worker, or with a connection, that its realm may not use.</li>
+<li><strong>Per-realm settings:</strong> a Settings request with <code>?realm=</code> reads and writes that realm's own lists. A request-scoped value (<code>SETTINGS_REALM</code>) tells the settings store which realm, so every settings endpoint and form works per realm unchanged.</li>
+<li><strong>UI:</strong> a realm switcher in the header, remembered per browser ("All realms" by default; shown once a realm beyond home exists). Sessions, decisions and collections show the realm's own, new sessions start in it, and Settings edits its lists, with a note saying so. <strong>Settings → System → Realms</strong> creates and deletes realms, and sets which realms each worker and connection serves.</li>
+</ul>
+<h3 id="313-as-built-step-4b">3.13 As built (step 4b)</h3>
+<ul>
+<li><strong>The memex keeps each realm's knowledge in a database of its own:</strong> home's memex (the one <code>c6m</code> runs) opens another realm's memex under <code>realms/&lt;id&gt;/</code> when first asked.
+<ul>
+<li><strong>Isolation by construction:</strong> each has its own items, things, links, facts, trails and passages, so search, briefs, facts, notes and things are per realm, and nothing in the queries could leak.</li>
+<li><strong>Upgrades:</strong> each database upgrades itself through the same machinery.</li>
+</ul>
+</li>
+<li><strong>Routing:</strong> every call carries its realm (the head stamps it), and home's memex hands another realm's call to that realm's memex.
+<ul>
+<li><strong>Home's only:</strong> mail, calendars, contacts, photos, folders and upgrades are refused for other realms.</li>
+<li><strong>Their jobs:</strong> another realm's memex runs only the understanding and embedding jobs.</li>
+</ul>
+</li>
+<li><strong>Back to the head:</strong> what a realm's memex raises carries its realm. Its disputes open decisions in that realm, and its events reach only that realm's automations.</li>
+<li><strong>Deleting a realm</strong> queues <code>memex.drop_realm</code>, which removes its database and blobs.</li>
+</ul>
+<h3 id="314-as-built-step-4c">3.14 As built (step 4c)</h3>
+<ul>
+<li><strong>Grants:</strong> a <code>grants</code> table (migration <code>0033</code>) and a log of each use (<code>grant_uses</code>). Only you create and revoke them: <code>/api/v1/grants</code>, and <strong>Settings → System → Grants</strong>, which lists each grant with its uses. A grant is between two realms that hold data, never root.</li>
+<li><strong>Kinds and modes:</strong></li>
+</ul>
+<table><thead><tr><th>Kind</th><th>Modes</th><th>Scope</th></tr></thead><tbody>
+<tr><td>collection</td><td>read, append, snapshot</td><td><code>{collection, where?}</code>: <code>where</code> limits a read to some records</td></tr>
+<tr><td>memex</td><td>read</td><td><code>{kinds?}</code>: none means what the session may see anyway</td></tr>
+<tr><td>operations</td><td>call</td><td><code>{methods: [...]}</code>, such as <code>memex.mail.draft</code></td></tr>
+</tbody></table>
+<ul>
+<li><strong>Collections:</strong>
+<ul>
+<li><strong>Reaching another realm's collection:</strong> a realm-scoped token gives <code>?realm=</code>, and an agent gives <code>realm</code> on <code>records_*</code>. The head checks for a grant on every call.</li>
+<li><strong>What each mode allows:</strong> read covers listing, querying, getting and history. Append covers adding only. Changing or deleting another realm's records is never granted.</li>
+<li><strong>Grants on some records:</strong> a grant's <code>where</code> is a second filter that must also hold. A query cannot widen it, and getting a record outside it answers 404.</li>
+</ul>
+</li>
+<li><strong>Provenance:</strong>
+<ul>
+<li><strong>Appends:</strong> what a realm adds through a grant records who added it and through which grant (<code>token:factory grant:&lt;id&gt;</code>).</li>
+<li><strong>Snapshots:</strong> a snapshot copies the records into the receiving realm's collection of the same name, creating it with the same schema if needed. Each copy is labelled <code>from:&lt;realm&gt;</code> and <code>grant:&lt;id&gt;</code>, and linked to its original.</li>
+</ul>
+</li>
+<li><strong>Knowledge:</strong> a session's (or a realm token's) memex search also searches the realms that granted it reads, limited to the grant's kinds. Hits from there carry <code>realm</code>. Getting an item by id falls back to those realms.</li>
+<li><strong>Operations:</strong> a granted operation runs in the realm that owns it, which is how a realm drafts mail through home's accounts. Each call is logged on the grant.</li>
+<li><strong>Requests:</strong> an agent's <code>grant_request</code> creates a requested grant and a decision (Allow or Deny). Your answer puts the grant in force, or denies it, and the session hears the answer as a message. Revoking a request settles its decision.</li>
+</ul>
+<h3 id="315-as-built-step-4d">3.15 As built (step 4d)</h3>
+<ul>
+<li><strong>Commons is a realm</strong> (migration <code>0034</code>), created on upgrade.
+<ul>
+<li><strong>Who reads it:</strong> every realm, without a grant row, until you untick <strong>reads commons</strong> for that realm under Settings → System → Realms.</li>
+<li><strong>What can't happen in it:</strong> sessions don't run there, tokens can't be limited to it, and it can't be deleted.</li>
+<li><strong>Grants:</strong> a grant can't point into it.</li>
+</ul>
+</li>
+<li><strong>Reading:</strong>
+<ul>
+<li><strong>Collections:</strong> commons' collections answer <code>?realm=commons</code> (or <code>realm</code> on <code>records_*</code>).</li>
+<li><strong>Search:</strong> a realm's memex searches include commons' knowledge.</li>
+<li><strong>Briefs:</strong> a session's brief adds what commons knows about the same things, under "From commons".</li>
+</ul>
+</li>
+<li><strong>Publishing:</strong>
+<ul>
+<li><strong>Grants:</strong> a realm needs an append grant from commons, either on a collection or on knowledge (kind memex, mode append, which exists only for commons).</li>
+<li><strong>Records:</strong> adding a record to commons' collection then answers 202, with a decision in commons. The record is checked against the schema up front, and nothing is in commons until you choose <strong>Publish</strong>.</li>
+<li><strong>Facts:</strong> an agent's <code>commons_publish</code> proposes a record, or a fact of its realm's knowledge by id.</li>
+<li><strong>When you choose Publish:</strong> a record goes in with <code>from:&lt;realm&gt;</code> and "published from realm X, reviewed by you". A fact goes in as reviewed, with its evidence. Reject publishes nothing.</li>
+</ul>
+</li>
+<li><strong>Deleting a realm</strong> now also revokes its grants (their log stays).</li>
+</ul>
+<h2 id="4-primitives">4. Primitives</h2>
+<p>Every primitive is scoped by realm, has operations in the catalog (so the assistant, the CLI, the API reference and the OpenAPI document get them automatically), and has agent tools where agents need them.</p>
+<h3 id="41-collections-and-records">4.1 Collections and records</h3>
+<p>A <strong>collection</strong> is a typed table that agents and code can use for anything.</p>
+<pre><code>collection(realm, name, description, schema /* JSON Schema */, schema_version,
+           keys /* unique fields */, labels, created_by)
+record(id, realm, collection, fields JSON, links /* memex things and items */,
+       labels, version, created_by /* session | you | trigger | api token */, created_at, updated_at)
+record_history(record_id, version, fields JSON, changed_by, changed_at)
+</code></pre>
+<ul>
+<li><strong>Strict schemas.</strong> Unknown fields and wrong types are rejected, as with ingest attributes, so agents can't drift the data. Enums, required fields, formats and unique keys are enforced.</li>
+<li><strong>Changing a schema:</strong>
+<ul>
+<li><strong>additive changes</strong> (a new optional field, a new enum value) apply at once;</li>
+<li><strong>anything else</strong> needs a migration: a description of how existing records change, applied after you approve it as a decision.</li>
+</ul>
+</li>
+<li><strong>Optimistic updates.</strong> Writes give the version they expect, so two sessions can't silently overwrite each other.</li>
+<li><strong>History.</strong> Every change is kept, with who made it.</li>
+<li><strong>Links into the memex.</strong> A record can link to things (a person, a repository) and items (an email, a document) in its realm.</li>
+<li><strong>Search and briefs.</strong> Records are mirrored into the memex as items of kind <code>record</code>, the way facts are, so search finds them and briefs can mention them.</li>
+<li><strong>Queries:</strong> a small JSON filter language with equality, ranges, <code>in</code>, text match on string fields, sorting, grouping with counts, and paging. There's deliberately no SQL, so queries stay safe and portable.</li>
+<li><strong>Effects:</strong> deleting a record or dropping a collection is destructive, and asks first (4.2).</li>
+<li><strong>Where they live:</strong> in the head's database. The head is the always-on core, next to the triggers that react to changes. The memex is optional and may run on another machine, so it only holds the search mirror.</li>
+</ul>
+<h4 id="as-built-step-2a">As built (step 2a)</h4>
+<ul>
+<li><strong>Storage:</strong> tables <code>collections</code>, <code>records</code> and <code>record_history</code> in the head (migration <code>0029</code>). The schema checker (<code>schema.rs</code>) is carbon6's own: it covers types, properties, required fields, enums and consts, items, <code>anyOf</code>/<code>oneOf</code>/<code>allOf</code>, <code>$ref</code> into <code>$defs</code>, ranges, lengths and patterns. Objects are closed unless <code>additionalProperties</code> says otherwise; an object schema with no properties at all stays open, for free-form maps.</li>
+<li><strong>Schema changes:</strong> a new schema is accepted only if every record already there still fits, and new keys only if they are already unique. A change that would reject records answers "needs a migration"; that path arrives with decisions (step 3).</li>
+<li><strong>Queries:</strong> the JSON filter covers <code>$eq</code>, <code>$ne</code>, <code>$in</code>, <code>$nin</code>, <code>$gt(e)</code>, <code>$lt(e)</code>, <code>$contains</code> (text, or an item of a list), plus words, sorting, paging and <code>group_by</code> counts. Field names are checked (letters, digits and <code>_</code>) before they reach SQL.</li>
+<li><strong>History:</strong> every create, update and delete is kept in <code>record_history</code>, with who made it: <code>you</code>, <code>token:&lt;realm&gt;</code> or <code>session:&lt;id&gt;</code>.</li>
+<li><strong>API:</strong> <code>/api/v1/collections…</code>, with <code>?realm=</code> for you (a realm's token is always in its own realm). Every route has a catalog operation, so the assistant, the API reference and the OpenAPI document cover collections.</li>
+<li><strong>Agents:</strong> sessions get <code>records_query</code> (which lists the collections when given none), <code>records_get</code>, <code>records_put</code> and <code>records_delete</code>, which reach only the session's realm.</li>
+<li><strong>The memex:</strong> records of non-system collections are mirrored into it as kind <code>record</code> (in the default scope) and removed when deleted.</li>
+<li><strong>UI:</strong> <strong>Collections</strong> shows a page per collection, with a table, search, forms generated from the schema (required fields first; a choice for enums, a checkbox for booleans, a comma-separated list for lists of strings, JSON for anything else), each record's history, and deleting.</li>
+</ul>
+<h3 id="42-decisions">4.2 Decisions</h3>
+<p>A <strong>decision</strong> is any time carbon6 needs you.</p>
+<pre><code>decision(id, realm, kind /* approve | choose | provide | confirm | question */,
+         title, document /* Markdown: the case, the evidence, the consequences */,
+         options /* each with a label and what happens */, form /* fields, for provide and question */,
+         default_on_expiry?, deadline?, priority, group,
+         asked_by /* session | workflow | trigger | policy | grant request */, context /* links */,
+         state /* open | answered | expired | withdrawn */, answer, note, answered_via, answered_at)
+</code></pre>
+<ul>
+<li><strong>One primitive for every kind of question.</strong> These existing features become kinds of decision, with the same list, the same notifications and the same links:
+<ul>
+<li>approving a tool call under a policy;</li>
+<li>a workflow's approve step;</li>
+<li>action items;</li>
+<li>the assistant's questions;</li>
+<li>confirming a destructive operation;</li>
+<li>grant requests and app installs.</li>
+</ul>
+</li>
+<li><strong>Answering:</strong> in the To do list (renamed Decisions), in the session or view that asked, or from a notification's signed link, so you can answer from your phone without opening carbon6.</li>
+<li><strong>Waiting or not:</strong>
+<ul>
+<li><strong>blocking:</strong> the session waits, as tool-call approvals do today;</li>
+<li><strong>non-blocking:</strong> the decision is recorded, and its answer fires an event (4.3) that starts whatever comes next.</li>
+</ul>
+</li>
+<li><strong>Expiry:</strong> with a deadline, an unanswered decision takes its <code>default_on_expiry</code>, or "no" if it has none, which is what happens today.</li>
+<li><strong>Batching:</strong> decisions in the same group are presented together, and a scheduled digest lists what's open. This is what makes "my only involvement is approval" practical.</li>
+<li><strong>The document matters.</strong> A decision should be answerable from the document alone, so the asking prompt (a skill) says what it must contain: the case, the evidence, the cost, the risk, and what each option does.</li>
+</ul>
+<h4 id="as-built-step-3">As built (step 3)</h4>
+<ul>
+<li><strong>Storage:</strong> migration <code>0031</code> turns <code>todos</code> into <code>decisions</code> in place: ids kept, <code>detail</code> becomes <code>document</code>, <code>resolution</code> becomes <code>note</code>, done becomes answered. New columns hold options, a form, a deadline with a default answer, the answer, how it was answered, and <code>ref</code>, naming what waits on it.</li>
+<li><strong>Kinds and states:</strong> kinds are approve, choose, confirm, provide, question, dispute and follow_up. States are open, snoozed, answered, dismissed, expired and withdrawn.</li>
+<li><strong>What opens one</strong> (<code>decisions.rs</code>):
+<ul>
+<li><strong>A tool call held by a policy</strong> (<code>approval:&lt;session&gt;:&lt;call&gt;</code>): Allow or Deny, a one-hour deadline, default Deny.</li>
+<li><strong>A workflow's approve step</strong> (<code>workflow:&lt;run&gt;:&lt;step&gt;</code>): Go ahead or Stop.</li>
+<li><strong>The assistant's questions</strong> (<code>question:&lt;session&gt;:&lt;call&gt;</code>): its fields as a form. A question asking for a secret gets no form; it is answered in the conversation, and secrets are never stored in decisions.</li>
+<li><strong>An agent's <code>decision_request</code></strong> (<code>session:&lt;session&gt;:&lt;id&gt;</code>): non-blocking. The agent carries on, and the answer arrives in its session as a message ("Your question was answered (decision #N …)").</li>
+<li><strong><code>todo_add</code>, the memex's disputes, and you:</strong> nothing waits on these.</li>
+</ul>
+</li>
+<li><strong>Answering:</strong> answering one answers what waits on it (the approval, the workflow, the question, or a message to the session). If that fails, the decision stays open. Answering the waiting thing elsewhere (in the session, through its link, or by it timing out) settles the decision. Answers are checked: an option must be one offered, required fields must be filled, choices must be valid, and there are no extra fields. Nothing that waits can be dismissed.</li>
+<li><strong>Deadlines:</strong> every half minute (<code>sweep</code>), an open decision past its deadline takes its default answer, or "no", and becomes expired.</li>
+<li><strong>Notifications:</strong> a new decision with options sends a <code>decision</code> notification (on by default), with a signed link (<code>/approve/{token}</code>, prefix <code>dc:</code>) whose page offers the options as buttons.</li>
+<li><strong>Reconcile at start:</strong> the head opens decisions for whatever already waits without one (held tool calls, approve steps), so an upgrade loses nothing.</li>
+<li><strong>API:</strong> <code>/api/v1/decisions…</code> (list, count, get, add, <code>answer</code>, edit to snooze, dismiss or reopen, <code>session</code>). Every route has a catalog operation. The <strong>Decisions</strong> page replaces <strong>To do</strong>, and <code>/todos</code> still opens it.</li>
+</ul>
+<h3 id="43-events-and-triggers">4.3 Events and triggers</h3>
+<p>Automations generalize into <strong>triggers</strong>: an event, an optional filter, and an action.</p>
+<table><thead><tr><th>Events</th><th></th></tr></thead><tbody>
+<tr><td>Time</td><td>a schedule (cron), as today</td></tr>
+<tr><td>Inbound</td><td>a webhook call, as today</td></tr>
+<tr><td>Records</td><td>created, updated (optionally: this field changed, or changed to this value), deleted</td></tr>
+<tr><td>Decisions</td><td>answered (with which option), expired</td></tr>
+<tr><td>Series</td><td>crossed a threshold, or stopped arriving</td></tr>
+<tr><td>Sessions</td><td>finished, failed, needs approval</td></tr>
+<tr><td>Memex</td><td>new items matching a query, as today's memex events</td></tr>
+</tbody></table>
+<table><thead><tr><th>Actions</th><th></th></tr></thead><tbody>
+<tr><td>Start</td><td>a template or a workflow, with the event as <code>{{input}}</code></td></tr>
+<tr><td>Write</td><td>create or update a record, with fields mapped from the event</td></tr>
+<tr><td>Record a value</td><td>add a point to a series</td></tr>
+<tr><td>Ask</td><td>open a decision</td></tr>
+<tr><td>Notify</td><td>send a notification</td></tr>
+</tbody></table>
+<ul>
+<li><strong>Mapping without code.</strong> A webhook or event can be mapped to record fields or series values with JSONPath expressions. For example, a payment provider's webhook writes a revenue point without starting a session. Anything harder starts a template, where an agent does the work.</li>
+<li><strong>Loop protection.</strong> Every action carries the chain of events that caused it. Chains deeper than a limit, or a trigger firing too often (a rate limit per trigger), stop and notify you. Each trigger can have a budget.</li>
+<li><strong>History,</strong> as automations have today: each run, its cause, its outcome, its cost.</li>
+</ul>
+<p><strong>As built (step 5):</strong></p>
+<ul>
+<li><strong>Automations became triggers in place:</strong>
+<ul>
+<li><strong>Migration <code>0035</code></strong> renames <code>automations</code> to <code>triggers</code> and <code>automation_runs</code> to <code>trigger_runs</code>. Ids, schedules, inputs, webhook token hashes (so URLs keep working) and run history are kept and checked.</li>
+<li><strong>New columns:</strong> <code>event_params</code>, <code>filter</code>, <code>action</code> (<code>start</code> for existing automations), <code>action_params</code>, <code>per_hour</code>, and each run's <code>cause</code>.</li>
+<li><strong>API:</strong> <code>/api/v1/triggers</code>, with <code>/api/v1/automations</code> kept as its old name.</li>
+</ul>
+</li>
+<li><strong>Events:</strong> schedule, webhook, memex (as before), plus:
+<ul>
+<li><strong>record:</strong> created, updated or deleted in a collection. The event has the record, the fields before, and which fields changed.</li>
+<li><strong>decision:</strong> opened, answered (with the option), expired or dismissed.</li>
+<li><strong>session:</strong> a turn finished or failed, or the session needs approval; optionally only sessions with some labels.</li>
+</ul>
+</li>
+<li><strong>Filters and mapping:</strong>
+<ul>
+<li><strong>Filters:</strong> JSONPath conditions on the event (<code>$.record.fields.stage</code>, <code>$.body.amount</code>), with the same comparisons as record queries plus <code>$exists</code>.</li>
+<li><strong>Mapping:</strong> in action parameters, a string <code>"$.path"</code> becomes that value, and <code>{{$.path}}</code> inside text becomes it as text.</li>
+</ul>
+</li>
+<li><strong>Actions:</strong>
+<ul>
+<li><strong>start:</strong> a template or workflow, as before. <code>{{input}}</code> is the event (a webhook's body, the mail summary, or the event as JSON), or <code>action_params.input</code> mapped from it.</li>
+<li><strong>write:</strong> creates a record, or updates the one <code>id</code> names (merging fields).</li>
+<li><strong>ask:</strong> opens a decision.</li>
+<li><strong>notify:</strong> sends a notification as event <code>trigger</code>, which channels carry by default.</li>
+</ul>
+</li>
+<li><strong>Loop protection:</strong>
+<ul>
+<li><strong>Chains:</strong> an action runs with the chain of triggers that led to it. At <code>MAX_DEPTH</code> (5) the run is stopped and you're notified.</li>
+<li><strong>Rate:</strong> a trigger that ran <code>per_hour</code> times in the last hour is skipped, also with a notice. Manual runs don't count.</li>
+<li><strong>History:</strong> each run records its cause.</li>
+</ul>
+</li>
+<li><strong>Digests:</strong> a schedule's event has <code>open_decisions {count, high, text}</code>, so a digest is a schedule that notifies, filtered on the count. The Triggers form has a preset for it.</li>
+</ul>
+<h3 id="44-series">4.4 Series</h3>
+<p>A <strong>series</strong> is numbers over time.</p>
+<pre><code>series(realm, name, unit, description, dimensions /* e.g. service */, retention, labels)
+point(series, ts, value, dimensions JSON)
+threshold(series, condition /* e.g. sum over 7 days &lt; 10, no point for 2 hours */, dimensions?, then /* an event */)
+</code></pre>
+<ul>
+<li><strong>Queries:</strong> sum, average, minimum, maximum and last value, over windows, grouped by dimension.</li>
+<li><strong>Sources:</strong> trigger mappings (4.3), agents (<code>series_record</code>), the API, and carbon6 itself.</li>
+<li><strong>Built in:</strong> carbon6 records model spend, tokens and session counts per realm and label as series. <strong>Usage and budgets move onto series:</strong> a budget is a threshold whose action is to stop spending.</li>
+</ul>
+<p><strong>As built (step 6):</strong></p>
+<ul>
+<li><strong>Storage:</strong> migration <code>0036</code> adds <code>series</code> (per realm: unit, description, dimensions, retention) and <code>points</code> (time, value, dimensions, source).</li>
+<li><strong>API:</strong> <code>/api/v1/series</code> lists, creates, changes and deletes series; <code>…/{name}/points</code> adds a point, and <code>…/{name}/query</code> summarizes.</li>
+<li><strong>Queries:</strong> sum, avg, min, max, last or count over the last N minutes (default a day) or from/to. Optionally only points with some dimension values, per dimension value (<code>group_by</code>), or per hour or day (<code>bucket</code>).</li>
+<li><strong>Where points come from:</strong>
+<ul>
+<li>the API;</li>
+<li>agents, with <code>series_record</code> and <code>series_query</code> (which lists series when given none);</li>
+<li>triggers, with the "record a value" action (<code>{series, value: "$.body.amount", dims}</code>);</li>
+<li>host checks, which now keep history in home's <code>host_up</code> and <code>host_check_ms</code> (each host's latest check moved in on upgrade).</li>
+</ul>
+</li>
+<li><strong>Model usage as series:</strong> <code>model_spend</code> (at today's prices), <code>model_tokens</code> and <code>model_calls</code>, per realm, by model and connection, computed from the usage ledger. They read like any series and are never written to.</li>
+<li><strong>Thresholds are trigger events:</strong>
+<ul>
+<li><strong>The condition:</strong> <code>{series, agg, minutes, op, value, where?}</code>, or <code>{series, silent_minutes, where?}</code> for points that stop arriving.</li>
+<li><strong>When it fires:</strong> once when the condition becomes true (<code>crossed</code>) and once when it stops being true (<code>cleared</code>).</li>
+<li><strong>When it's checked:</strong> at once when a point is recorded, and every minute (also for silence and model usage). A sweeper drops points past their series' retention.</li>
+</ul>
+</li>
+<li><strong>UI:</strong> the Collections page lists the realm's series with their 24-hour and 7-day sums, and creates and deletes them. The Triggers form has the series event and the "record a value" action.</li>
+</ul>
+<h3 id="45-views">4.5 Views</h3>
+<p>A <strong>view</strong> is a configured screen, rendered by carbon6's UI.</p>
+<pre><code>view(realm, name, kind /* table | board | record | chart | feed | page */,
+     source /* a collection query, a series query, decisions, sessions, memex query */,
+     fields, group_by, sort, actions, position /* in the realm's menu */)
+</code></pre>
+<ul>
+<li><strong>Kinds:</strong>
+<ul>
+<li><strong>table:</strong> records as rows;</li>
+<li><strong>board:</strong> records as cards in columns by a field, such as a stage;</li>
+<li><strong>record:</strong> one record with its fields, links, history, sessions and decisions;</li>
+<li><strong>chart:</strong> series over time;</li>
+<li><strong>feed:</strong> events, decisions or sessions as a timeline;</li>
+<li><strong>page:</strong> a Markdown page with embedded views, as a dashboard.</li>
+</ul>
+</li>
+<li><strong>Actions</strong> on a view or a record:
+<ul>
+<li>start a template with the record as its input;</li>
+<li>set a field, which moves a card between columns;</li>
+<li>answer a decision;</li>
+<li>open the record's sessions.</li>
+</ul>
+</li>
+<li><strong>Agents' one-off pages</strong> stay as Outputs. Views are for what an app shows every day.</li>
+<li><strong>Each realm has its own menu</strong> of views, next to the sessions, decisions and memex pages every realm has.</li>
+</ul>
+<p><strong>As built (step 7):</strong></p>
+<ul>
+<li><strong>Views are the <code>views</code> system list:</strong>
+<ul>
+<li><strong>Storage:</strong> one record per view, edited under Settings → Views for the realm picked in the header, and inherited from root like the other lists. Migration <code>0037</code> moves a collection of your own named <code>views</code> to <code>views_1</code> first.</li>
+<li><strong>API:</strong> <code>/api/v1/views</code> lists a realm's views (root's and its own), and <code>/api/v1/views/{name}/act</code> runs an action. Realm tokens reach their realm's views.</li>
+<li><strong>Checks on save:</strong> names, kinds, each kind's source, a board's column field, and that actions do something.</li>
+</ul>
+</li>
+<li><strong>Kinds, as rendered:</strong>
+<ul>
+<li><strong>table:</strong> the fields as columns; a record's first field opens it.</li>
+<li><strong>board:</strong> columns from the view's list, the field's enum, or the values present. ← and → move a card by setting the field.</li>
+<li><strong>record</strong> (<code>/views/&lt;name&gt;/&lt;id&gt;</code>): fields, links, labels, the sessions labelled <code>record:&lt;id&gt;</code>, and history.</li>
+<li><strong>chart:</strong> bars per hour or day of a series, with totals per dimension value.</li>
+<li><strong>feed:</strong> open decisions with their options as buttons, or sessions with given labels, newest first.</li>
+<li><strong>page:</strong> Markdown with <code>{{view:name}}</code> embedding any view but a page.</li>
+</ul>
+</li>
+<li><strong>Actions</strong> are buttons on each record. They set fields and/or start a template with the record as <code>{{input}}</code>, its sessions labelled <code>record:&lt;id&gt;</code>. Answering decisions and opening a record's sessions are built into feeds and records.</li>
+<li><strong>The menu:</strong> "Views ▾" in the header lists the realm's views. Below the <code>xl</code> width, it and the less-used links go into the ☰ menu, which now shows at every width up to <code>xl</code> (the header no longer overlaps at 1024px).</li>
+</ul>
+<h3 id="46-programs">4.6 Programs</h3>
+<p>Skills, agents, commands, templates, workflows, hooks and MCP servers keep working as they do, but belong to a realm and inherit from root (3.3).</p>
+<ul>
+<li><strong>System prompts are programs too.</strong> The prompts carbon6 itself uses become root skills you can edit or override per realm, never strings in code:
+<ul>
+<li>the base system prompt;</li>
+<li>the knowledge guidance in briefs;</li>
+<li>how to write a decision's document;</li>
+<li>the prompt for a session started from a decision;</li>
+<li>the compaction prompt.</li>
+</ul>
+</li>
+<li><strong>A workflow's approve step</strong> becomes a decision (4.2).</li>
+</ul>
+<h4 id="as-built-step-2c">As built (step 2c)</h4>
+<ul>
+<li><strong>Where prompts live:</strong> carbon6's prompts are records of the <code>prompts</code> system collection in root. A realm can override one by name.</li>
+<li><strong>Defaults</strong> ship in code (<code>prompts::DEFAULTS</code>; the memex's and the action-item prompt in <code>c6_api::prompts</code>, the agent's in <code>c6_agent</code>):
+<ul>
+<li><strong>added at every start;</strong></li>
+<li><strong>unedited prompts follow the code:</strong> a prompt nobody has edited (<code>updated_by = system</code>) follows its default when the default changes;</li>
+<li><strong>edited prompts are never touched.</strong></li>
+</ul>
+</li>
+<li><strong>The prompts:</strong>
+<ul>
+<li><strong>sessions:</strong> the base prompt, the side-chat note, the subagent note, and the compaction prompt with its two openings (automatic, and <code>/compact</code>);</li>
+<li><strong>the assistant's instructions;</strong></li>
+<li><strong>the action-item session;</strong></li>
+<li><strong>the memex:</strong> the brief's knowledge guidance, the reading system prompt and per-kind instructions (threads, papers, sessions, other), a thing's summary, system pages, and photo descriptions.</li>
+</ul>
+</li>
+<li><strong>Placeholders</strong> are <code>{{name}}</code> (<code>c6_api::prompts::fill</code>).</li>
+<li><strong>How each reaches its model:</strong>
+<ul>
+<li><strong>sessions:</strong> the head sends the base prompt as the session's realm has it. It sends the worker's own prompts (compaction, subagent) in the spec's <code>prompts_json</code>.</li>
+<li><strong>the memex:</strong> it gets its prompts with its configuration. Editing one tells it to reload.</li>
+</ul>
+</li>
+<li><strong>Settings → Prompts</strong> lists them with their defaults. Each can be saved, or returned to its default, which an empty text also does. The API is <code>/api/v1/settings/prompts</code>.</li>
+<li><strong>A gap fixed:</strong> a session started from an action item now runs in the item's realm.</li>
+</ul>
+<h3 id="47-knowledge">4.7 Knowledge</h3>
+<ul>
+<li><strong>The memex is partitioned by realm.</strong> Search, briefs, facts, notes and trails stay inside the realm and its grants.</li>
+<li><strong>Shared knowledge goes through commons</strong> (3.7), with you reviewing what's published.</li>
+<li><strong>One person in two realms:</strong> a person in home and the same person in the CRM realm are different things, unless they're linked through commons or a grant. The CRM realm reaches home's people through a read grant on them.</li>
+</ul>
+<h3 id="48-agent-tools">4.8 Agent tools</h3>
+<p>Sessions get tools for the primitives, which only reach their realm and its grants:</p>
+<table><thead><tr><th>Tool</th><th>Does</th></tr></thead><tbody>
+<tr><td><code>records_query</code>, <code>records_get</code></td><td>Queries and reads records</td></tr>
+<tr><td><code>records_put</code></td><td>Creates or updates a record, with the version it expects</td></tr>
+<tr><td><code>records_delete</code></td><td>Deletes a record (destructive: asks first)</td></tr>
+<tr><td><code>decision_request</code>, <code>decision_get</code></td><td>Asks you something, blocking or not; reads the answer</td></tr>
+<tr><td><code>series_record</code>, <code>series_query</code></td><td>Adds a point; reads a summary</td></tr>
+<tr><td><code>carbon6_api</code></td><td>The API reference, for code that uses carbon6 (exists)</td></tr>
+</tbody></table>
+<p>The memex tools (<code>memex_search</code>, <code>knowledge_record</code> and the others) stay, scoped by realm.</p>
+<h3 id="49-the-api">4.9 The API</h3>
+<ul>
+<li><strong>Every primitive has catalog operations,</strong> so it's in <code>/api/v1/openapi.json</code> and the <code>carbon6_api</code> reference automatically.</li>
+<li><strong>Tokens carry realms</strong> (3.8). A token made for an app's integration reaches only that app's realm.</li>
+<li><strong>Ingest</strong> (<code>memex.ingest</code>) writes into the token's realm.</li>
+</ul>
+<h2 id="5-apps">5. Apps</h2>
+<h3 id="51-the-package">5.1 The package</h3>
+<p>An app is a package of configuration, with <strong>no code</strong>:</p>
+<pre><code class="language-yaml">app: service-factory
+version: 1.0.0
+description: Finds gaps in app ecosystems, builds services on a shared base, runs them.
+realm: new                 # or: existing
+needs:                     # filled in or approved at install
+  secrets: [CLOUD_TOKEN, PADDLE_API_KEY, GITHUB_TOKEN]
+  workers: dedicated       # or: any
+  grants:
+    - {from: commons, mode: read, scope: "memex: fact"}
+contents:
+  collections: [...]
+  series: [...]
+  views: [...]
+  skills: [...]
+  agents: [...]
+  templates: [...]
+  workflows: [...]
+  triggers: [...]
+  policies: [...]
+  budgets: [...]
+  memory: [...]
+  decision_groups: [...]
+</code></pre>
+<h3 id="52-installing-upgrading-exporting-removing">5.2 Installing, upgrading, exporting, removing</h3>
+<ul>
+<li><strong>Install:</strong> carbon6 shows what the package will create, as a decision. Then it creates the realm, asks you for the secrets and grants it needs, and creates its contents.</li>
+<li><strong>Upgrade:</strong> a three-way comparison between the installed version, your edits since, and the new version.
+<ul>
+<li>Your edits are kept.</li>
+<li>Conflicts come to you as a decision.</li>
+<li>Schema changes follow the migration rule in 4.1.</li>
+</ul>
+</li>
+<li><strong>Export:</strong> a realm's configuration becomes a package, without its data or secret values. This is how an app you built by hand becomes one you can reinstall or share.</li>
+<li><strong>Remove:</strong> a destructive decision. It offers an export of the data first, then deletes the realm and everything in it.</li>
+<li><strong>Distribution:</strong> packages are files. There's no marketplace.</li>
+</ul>
+<h3 id="52a-as-built-step-9">5.2a As built (step 9)</h3>
+<ul>
+<li><strong>Packages are JSON</strong> in the shape of 5.1: <code>app</code>, <code>version</code>, <code>description</code>, <code>realm</code> (default: the app's name), and <code>needs</code> (secrets, workers, grants).
+<ul>
+<li><strong><code>contents</code>:</strong> <code>collections</code>, <code>series</code>, <code>triggers</code>, <code>memory</code>, <code>records</code> (to start with, by collection), and any settings list by its key: views, skills, agents, commands, hooks, mcp_servers, templates, workflows, policies, routes, prices, budgets.</li>
+</ul>
+</li>
+<li><strong>Install</strong> (<code>POST /api/v1/apps</code>, or Settings → System → Apps: paste or load a file, Plan, Install…):
+<ul>
+<li>The plan waits as a decision ("Install" or "Cancel"; cancelling leaves nothing).</li>
+<li>Then carbon6 creates the realm (marked with the app), and writes its contents through the head's own API, so every entry is checked as in Settings.</li>
+<li>It asks for each grant the app needs, as its own decision.</li>
+<li>It opens a follow-up decision listing what's left for you: secrets to set in the realm, a worker to dedicate, and webhook URLs to make.</li>
+</ul>
+</li>
+<li><strong>Export</strong> (<code>GET /api/v1/apps/export?realm=…[&amp;data=true]</code>) gives any realm's configuration as a package, with secret names but not values, and the grants it has as needs. With data, it includes its records too.</li>
+<li><strong>Upgrade</strong> (<code>POST /api/v1/apps/{realm}/upgrade</code>) compares, item by item, the version installed, the realm now, and the new version, all normalized the way Settings stores them.
+<ul>
+<li><strong>Unchanged by you:</strong> what the new version changes is applied.</li>
+<li><strong>Changed by both:</strong> a conflict, listed in the decision. "Upgrade, keeping my edits" or "Upgrade, taking the new version".</li>
+<li><strong>Dropped by the new version:</strong> its triggers and list entries go, and its collections stay with their records.</li>
+</ul>
+</li>
+<li><strong>Remove</strong> (<code>DELETE /api/v1/apps/{realm}</code>) is a decision that says what goes and suggests an export first.
+<ul>
+<li><strong>What it deletes:</strong> the realm's sessions (with their events), triggers and runs, workflow runs, decisions, collections and records, series and points, secrets, tokens, the realm, and its memex knowledge.</li>
+<li><strong>What ends or is kept:</strong> its grants end, workers and connections kept to it serve every realm again, and model usage stays in the ledger.</li>
+<li><strong>When it refuses:</strong> while any of its sessions runs.</li>
+</ul>
+</li>
+</ul>
+<h3 id="53-agents-writing-apps">5.3 Agents writing apps</h3>
+<p>An agent can draft a package, using the <code>carbon6_api</code> reference and a skill that explains the format. Installing it is still your decision (5.2). This is how carbon6 grows new apps without anyone changing carbon6's code.</p>
+<h2 id="6-worked-examples">6. Worked examples</h2>
+<p>These test whether the primitives are general. Each app is written only in configuration; anything that couldn't be is recorded in 6.3.</p>
+<h3 id="61-service-factory">6.1 Service factory</h3>
+<p>A realm that finds gaps in app ecosystems, builds small services on a shared base, launches them and runs them, with you approving at five gates.</p>
+<ul>
+<li><strong>Realm:</strong> <code>factory</code>, with a dedicated worker for building and deploying. Model connections as you choose. No grant to home: it never sees your mail or photos. It reads commons for infrastructure facts.</li>
+<li><strong>Collections:</strong>
+<ul>
+<li><code>candidates</code>: the gap, the ecosystem, the evidence (links), a score per rubric criterion, the stage (<code>found → approved → validating → build → rejected</code>), and the decision ids for its gates.</li>
+<li><code>services</code>: the name, the candidate it came from, the repository, where it's deployed, its marketplace listing, the accounts and secret names it uses, the stage (<code>building → in_review → live → sunsetting → retired</code>), and its kill criteria.</li>
+<li><code>incidents</code>: the service, what happened, its severity, its state, and the sessions that worked on it.</li>
+</ul>
+</li>
+<li><strong>Series:</strong> <code>revenue</code>, <code>hosting_cost</code>, <code>model_cost</code>, <code>uptime</code> and <code>support_tickets</code>, each with the dimension <code>service</code>.</li>
+<li><strong>Skills:</strong> the gap-finding rubric and its sources; the validation playbook; building on the base (the template repository); the launch checklist; operating a service; writing a gate's decision document; support replies.</li>
+<li><strong>Templates:</strong>
+<ul>
+<li><code>scan</code>: research gaps, then write <code>candidates</code>;</li>
+<li><code>deep-dive</code>: one candidate's case;</li>
+<li><code>validate</code>: a landing page or waitlist;</li>
+<li><code>build</code>;</li>
+<li><code>launch</code>;</li>
+<li><code>operate</code>: a daily check;</li>
+<li><code>triage</code>: one support message;</li>
+<li><code>sunset</code>: shut a service down.</li>
+</ul>
+</li>
+<li><strong>Triggers:</strong>
+<ul>
+<li>weekly → <code>scan</code>;</li>
+<li>a candidate created with a score above the bar → <code>deep-dive</code> → decision "pursue?" (gate 1);</li>
+<li>gate 1 answered yes → <code>validate</code> → decision "spend $X to test?" (gate 2), then "build or kill?";</li>
+<li>a candidate entering <code>build</code> → <code>build</code> → decision "release?" (gate 3);</li>
+<li>gate 3 answered yes → <code>launch</code> → decision "submit the listing?" (gate 4);</li>
+<li>daily → <code>operate</code>;</li>
+<li>a payment provider's webhook → a <code>revenue</code> point, mapped without a session;</li>
+<li>an email to the support address (through a memex grant on the factory's own inbox) → <code>triage</code>;</li>
+<li>a <code>revenue</code> threshold (its sum over 60 days below its costs) → <code>sunset</code> → decision (gate 5).</li>
+</ul>
+</li>
+<li><strong>Views:</strong> a board of candidates by stage; a board of services by stage; a page with revenue against costs per service; the incidents feed.</li>
+<li><strong>Policies:</strong> ask before spending, submitting forms, publishing, deploying to production, or sending email outside approved templates. Deny deleting repositories.</li>
+<li><strong>Budgets:</strong> model spend per month for the realm, plus per service via the <code>model_cost</code> series threshold.</li>
+</ul>
+<h3 id="62-personal-crm">6.2 Personal CRM</h3>
+<p>A realm that keeps you in touch with people who matter, using your mail without the CRM being able to read the rest of it.</p>
+<ul>
+<li><strong>Realm:</strong> <code>crm</code>, on any worker.</li>
+<li><strong>Grants from home:</strong>
+<ul>
+<li><strong>read</strong> on people (things) and on mail metadata (sender, recipients, date, subject) for people in the CRM;</li>
+<li><strong>call</strong> on <code>mail.draft</code>, so the CRM can prepare emails. Sending stays with you: home's policy makes every send a decision.</li>
+</ul>
+</li>
+<li><strong>Collections:</strong>
+<ul>
+<li><code>relationships</code>: a link to the person thing, the tier, how often you want to be in touch, the last contact, and notes;</li>
+<li><code>touchpoints</code>: the relationship, the date, the channel, a summary, and a follow-up.</li>
+</ul>
+</li>
+<li><strong>Triggers:</strong>
+<ul>
+<li>mail with a person in the CRM (a memex event through the grant) → a <code>touchpoints</code> record and an updated last contact, mapped without a session;</li>
+<li>weekly → a session lists relationships past their cadence, drafts check-ins (<code>mail.draft</code> through the call grant), and asks one batched decision: "send these five?";</li>
+<li>a touchpoint's follow-up date → a decision reminding you.</li>
+</ul>
+</li>
+<li><strong>Views:</strong> a table of relationships sorted by how overdue they are; a person's record with their touchpoints and mail.</li>
+<li><strong>Skills:</strong> how to write a check-in in your voice; what counts as a touchpoint.</li>
+</ul>
+<h3 id="63-what-the-examples-showed">6.3 What the examples showed</h3>
+<ul>
+<li><strong>Calling across realms</strong> (sending mail on the CRM's behalf) needed the <code>call</code> grant mode. It's in 3.7 because of this example.</li>
+<li><strong>Series dimensions</strong> (per service) are needed so one series covers a portfolio.</li>
+<li><strong>"Stopped arriving"</strong> as a series event (uptime pings stop) is needed to detect a dead service.</li>
+<li><strong>A record's stage driving work</strong> is covered by record triggers on field changes, with no special state-machine primitive. Schema enums keep the stages valid.</li>
+<li><strong>Decisions in batches</strong> were needed by both apps: "send these five?", and a weekly digest of open gates.</li>
+<li>Neither example needed code in carbon6.</li>
+</ul>
+<h3 id="64-as-built-step-10">6.4 As built (step 10)</h3>
+<ul>
+<li><strong>The packages:</strong> both examples are in <code>examples/apps/</code> (<code>service-factory.json</code>, <code>personal-crm.json</code>). A test installs them as they are and exercises their wiring:
+<ul>
+<li>their contents and grant requests;</li>
+<li>a payment webhook writing revenue per service with no session;</li>
+<li>a strong candidate firing the deep dive;</li>
+<li>the realm's own budget showing in usage;</li>
+<li>home's mail reaching the CRM through its grant.</li>
+</ul>
+</li>
+<li><strong>Gates</strong> are agents' <code>decision_request</code>s with a <code>group</code> (gate-1 … gate-5) and the record in their context. Decision triggers filter on the group and the option, and map the context into the next template's input.</li>
+<li><strong>Fixed while writing them:</strong>
+<ul>
+<li>Templates and workflows a realm brings were never used: running one read home's list. Now runs, triggers and workflow checks use the realm's own list plus root's.</li>
+<li>Budgets in a realm's own list were ignored. Now they apply to that realm's sessions, and the usage report shows them as <code>name (realm x)</code>.</li>
+<li>Memex events (mail arriving) reached only the realm that owns the knowledge. Now a realm granted reads of that kind hears them too, and each one is logged on the grant.</li>
+</ul>
+</li>
+<li><strong>Gaps they showed, left for later:</strong>
+<ul>
+<li><strong>Scoping:</strong> grants are no narrower than a kind of knowledge. There is no "mail metadata only" for the CRM, and no "one mail account" for the factory's support inbox.</li>
+<li><strong>Filters can't look anything up:</strong> a trigger can't say "mail from someone in <code>relationships</code>". The CRM's mail trigger hears all mail it may read and its agent ignores the rest, bounded by its hourly limit.</li>
+<li><strong>Thresholds compare a series with a number,</strong> once for the whole series. "Revenue below costs, per service" needs comparing two series per dimension value, so the factory's sunset trigger uses a fixed bar.</li>
+<li><strong>Nothing fires when a date in a record arrives</strong> (a follow-up due today). The CRM uses a daily schedule whose agent checks, and mappings can't format dates.</li>
+</ul>
+</li>
+</ul>
+<h2 id="7-guarantees">7. Guarantees</h2>
+<ol>
+<li><strong>Default deny between realms.</strong> Only grants cross, with provenance and a log.</li>
+<li><strong>One enforcement point.</strong> The head decides every access to carbon6 data.</li>
+<li><strong>Strict data.</strong> Records and attributes match their schemas, and changes are versioned with who made them.</li>
+<li><strong>Nothing irreversible without you.</strong> Deletes, drops, uninstalls, spending (through policies), grant changes and app installs are decisions.</li>
+<li><strong>Bounded automation.</strong> Triggers have depth limits, rate limits and budgets.</li>
+<li><strong>Behavior is visible and editable.</strong> Every prompt carbon6 uses is configuration you can read and change.</li>
+<li><strong>Honest limits.</strong> What isn't isolated (3.9) is stated, and the UI says so where it matters.</li>
+</ol>
+<h2 id="8-what-changes-in-todays-features">8. What changes in today's features</h2>
+<p>In short; the details are in 12, and how existing data is upgraded is in 13.</p>
+<table><thead><tr><th>Today</th><th>Becomes</th></tr></thead><tbody>
+<tr><td>Labels as the only scope</td><td>Labels inside realms</td></tr>
+<tr><td>Memex scopes by label</td><td>Realm + grants, with label scopes inside a realm</td></tr>
+<tr><td>Tool-call approvals, action items, workflow approve steps, assistant questions</td><td>Kinds of decision</td></tr>
+<tr><td>Automations (schedules, webhooks, memex events)</td><td>Triggers, with more events and actions</td></tr>
+<tr><td>Usage and budgets</td><td>Series and thresholds</td></tr>
+<tr><td>Settings shared by everything</td><td>Root defaults, inherited and overridden per realm</td></tr>
+<tr><td>API tokens that reach everything (except sign-in)</td><td>Tokens scoped to realms; the root token reaches everything</td></tr>
+<tr><td>Prompts in code (briefing guidance, action-item prompt, compaction)</td><td>Root skills you can edit</td></tr>
+<tr><td>Environment facts in one pool</td><td>Facts per realm; shared ones through commons</td></tr>
+</tbody></table>
+<h2 id="9-build-order">9. Build order</h2>
+<p>Each step is usable on its own. Each step also moves the features that duplicate its primitive onto it (12), and upgrades existing data (13), in the same step, so there is never a second way of doing the same thing for long.</p>
+<ol start="0">
+<li><strong>The upgrade machinery (13):</strong> backups before migrating, restoring on failure, checks that compare before and after, the upgrade report, <code>c6h upgrade</code> and <code>c6m upgrade</code> (with <code>--check</code> to try a copy), and test databases in today's shape that every later step is tested against. Nothing visible changes.</li>
+<li><strong>Realm plumbing:</strong> root and home, a realm on every object, a session's realm, the head and the memex checking realms, realm-scoped API tokens. There is no way to create a second realm yet, so nothing visible changes.</li>
+<li><strong>Collections:</strong> schemas, records, history, the JSON filter queries, the agent tools, the memex mirror, generated forms, a table and record view. <strong>Root → realm inheritance is built here, once,</strong> on collections.
+<ul>
+<li><strong>Ports:</strong> every list in Settings becomes a system collection with generated forms; hosts, memory notes, facts, commitments and trails become collections. carbon6's own prompts and the memex's understanding prompts become root skills.</li>
+</ul>
+</li>
+<li><strong>Decisions:</strong> the primitive, batching and digests, answering by link.
+<ul>
+<li><strong>Ports:</strong> tool-call approvals, action items, workflow approve steps, the assistant's questions, confirmations of destructive operations, the memex review queue and fact disputes.</li>
+</ul>
+</li>
+<li><strong>Realms you can create, grants and commons:</strong> the realm switcher; workers and connections available per realm; the four grant modes, provenance, the log; the commons review queue. Grant requests are decisions (3), and realms differ by configuration (2).</li>
+<li><strong>Triggers:</strong> record, decision, series and session events; mappings; loop protection.
+<ul>
+<li><strong>Ports:</strong> automations, cron schedules, webhooks and memex events become triggers; notifications become a subscriber to events.</li>
+</ul>
+</li>
+<li><strong>Series:</strong> points, queries, thresholds.
+<ul>
+<li><strong>Ports:</strong> usage, model prices, budgets, host checks and the memex's model-call budget.</li>
+</ul>
+</li>
+<li><strong>Views:</strong> board, chart, feed, page and actions; each realm's menu.
+<ul>
+<li><strong>Ports:</strong> the usage page and the decision list become views.</li>
+</ul>
+</li>
+<li><strong>The assistant as a program:</strong> a template with the catalog tools and a root skill, running in a realm like any session.</li>
+<li><strong>Apps:</strong> the package format, install, upgrade, export, remove; a skill for agents writing packages.</li>
+<li><strong>The examples:</strong> the service factory and the personal CRM as example packages. Building them is the final check that no app needs code.</li>
+</ol>
+<h2 id="10-decisions">10. Decisions</h2>
+<table><thead><tr><th>Question</th><th>Decision</th></tr></thead><tbody>
+<tr><td>Isolation unit</td><td>Realms: one per object, default deny, flows only through grants</td></tr>
+<tr><td>Name</td><td>Realm</td></tr>
+<tr><td>Nesting</td><td>Flat under root, for now</td></tr>
+<tr><td>Assistant</td><td>One per realm; administration in root</td></tr>
+<tr><td>Workers</td><td>Available to some realms, or dedicated to one</td></tr>
+<tr><td>Apps</td><td>Configuration only; a missing primitive is added, never the app</td></tr>
+<tr><td>Users</td><td>One</td></tr>
+<tr><td>Sandboxing</td><td>Unchanged: not by default; dedicated workers when files must be isolated</td></tr>
+<tr><td>Architecture</td><td>A microkernel: a small kernel of orthogonal primitives; system services built on its public operations (12)</td></tr>
+<tr><td>Duplicated features</td><td>Rebuilt on their primitive in the step that builds it (12, 9)</td></tr>
+<tr><td>Existing data</td><td>Upgraded automatically in each step, after a backup, all or nothing, nothing dropped (13)</td></tr>
+<tr><td>Where existing configuration goes</td><td>What grants abilities (secrets, tools, programs) to home; restrictions (policies, budget caps) to root</td></tr>
+<tr><td>Query language for collections</td><td>The small JSON filter (4.1) for now; a richer language only if apps need it</td></tr>
+<tr><td>Settings forms</td><td>Generated from schema annotations (descriptions, examples, field order, presets as records). A hand-written form is deleted only when the generated one covers everything it did.</td></tr>
+</tbody></table>
+<h2 id="11-open-questions">11. Open questions</h2>
+<ul>
+<li><strong>One person in two realms:</strong> whether commons should hold shared identities (people, organizations) by default, or only by explicit linking.</li>
+<li><strong>Claude Code sessions:</strong> they reach carbon6 through MCP. The realm checks are in the head, so they hold, but their tool set needs the same realm-aware tools.</li>
+<li><strong>Charts and pages:</strong> whether the view kinds in 4.5 cover what apps need, or a page kind with richer layout is needed.</li>
+<li><strong>Records at scale:</strong> the head's SQLite fits personal-scale apps. If an app needs millions of records, collections may need their own store.</li>
+</ul>
+<h2 id="12-revisiting-whats-built">12. Revisiting what's built</h2>
+<p>carbon6 follows a microkernel and Unix approach. A small kernel provides orthogonal primitives, and system services are built by combining them through the same public operations apps use. The test for anything built: <strong>could it have been written on the public API, or does it reach into private internals?</strong></p>
+<h3 id="121-the-kernel-stays-becomes-realm-aware">12.1 The kernel: stays, becomes realm-aware</h3>
+<ul>
+<li><strong>Processes and IPC:</strong> the fabric and registry (workers and memex nodes), the session runtime with journaling and sync, live streams.</li>
+<li><strong>Identity and security:</strong> sign-in, API tokens, the PKI and TLS, secrets, and policies. Policies are the kernel's permission check on tool calls; an "ask" opens a decision.</li>
+<li><strong>The system-call table:</strong> the catalog. A test already checks that every route is an operation. The UI, the CLI, the assistant, the API reference and the OpenAPI document all go through it.</li>
+<li><strong>Exec:</strong> templates, which say how to start a process. Fleet runs are a template with several targets.</li>
+<li><strong>Files:</strong> outputs.</li>
+<li><strong>The new primitives:</strong> realms and grants, collections, decisions, triggers, series and views.</li>
+<li><strong>A small search index</strong> for sessions, because the memex is optional (12.4).</li>
+</ul>
+<h3 id="122-duplicates-of-a-primitive-rebuild-on-it">12.2 Duplicates of a primitive: rebuild on it</h3>
+<table><thead><tr><th>Built today</th><th>Duplicates</th><th>Becomes</th></tr></thead><tbody>
+<tr><td>Every list in Settings: MCP servers, skills, commands, agents, hooks, templates, workflows, notification channels, policies, model routes, prices, budgets, memex folders and scopes. Each has its own JSON blob, routes and hand-written form.</td><td>Collections</td><td>System collections, inherited from root and overridden per realm by one mechanism. Forms are generated from each schema. Presets and inline help become schema annotations (descriptions, examples) and preset records.</td></tr>
+<tr><td>Single settings: the public URL, web search, the assistant's model, memex settings</td><td>Collections</td><td>Records in a <code>config</code> system collection</td></tr>
+<tr><td>Tool-call approvals; action items (<code>todos</code>); workflow approve steps; the assistant's questions; the memex review queue (merge suggestions, low-confidence links, naming faces); fact disputes</td><td>Decisions</td><td>Kinds of decision: one list, one set of notifications, one way to answer</td></tr>
+<tr><td>Automations, cron schedules, webhooks, memex events</td><td>Triggers</td><td>Triggers; schedules and webhooks are event sources</td></tr>
+<tr><td>Usage, model prices, budgets, host checks, the memex's model-call budget</td><td>Series</td><td>Series and thresholds</td></tr>
+<tr><td>Facts (a hand-built table with a strict schema, history and a memex mirror)</td><td>Collections</td><td>A <code>facts</code> collection; facts were the prototype of collections</td></tr>
+<tr><td>Commitments, trails, the hosts inventory</td><td>Collections</td><td>Collections with links into the memex</td></tr>
+<tr><td>Memory notes (<code>remember</code>, <code>forget</code>), memex notes (<code>memex_note</code>), facts (<code>knowledge_record</code>), action items (<code>todo_add</code>)</td><td>Overlapping tools</td><td>One knowledge model: memory notes become a collection whose records are always in briefs. Agents get <code>records_*</code>, <code>decision_request</code> and the memex tools, each doing one thing.</td></tr>
+</tbody></table>
+<h4 id="as-built-step-2b">As built (step 2b)</h4>
+<ul>
+<li><strong>The lists are system collections:</strong> skills, agents, commands, hooks, MCP servers, templates, workflows, policies, model routes, prices, budgets, notification channels, hosts, and memex folders and scopes.
+<ul>
+<li><strong>Where they live:</strong> policies, budgets, routes and prices in root, the rest in home (<code>lists.rs</code>).</li>
+<li><strong>Moving in:</strong> migration <code>0030</code> splits each stored list into records, in order (a new <code>position</code> column), and keeps the original values in <code>legacy_settings</code>. Checks prove every entry arrived unchanged and in order.</li>
+<li><strong>Schemas follow the code:</strong> each system collection's schema comes from the entry's Rust type, refreshed at every start.</li>
+</ul>
+</li>
+<li><strong>Reading and writing through the settings store:</strong> the head's settings store routes these keys to the collections. Every existing reader, endpoint and form works unchanged.
+<ul>
+<li><strong>Reading</strong> a list assembles it from records.</li>
+<li><strong>Writing</strong> one updates the records matched by each entry's identity (name, model or path; for skills, agents and commands, name and labels; for hooks, their event, matcher and command). Each entry keeps its own history.</li>
+</ul>
+</li>
+<li><strong>Inheritance</strong> (<code>lists::effective</code>): a session gets its realm's effective lists, used for its skills, agents, hooks, MCP servers, policies, commands and routing.
+<ul>
+<li><strong>Skills, agents, commands, MCP servers and the rest:</strong> root's entries, with the realm's replacing root's of the same identity.</li>
+<li><strong>Policies, budgets and hooks:</strong> root's first, then the realm's.</li>
+<li><strong>Routes:</strong> the realm's first.</li>
+</ul>
+</li>
+<li><strong>Memory notes:</strong> records of the <code>memory</code> collection, keeping their ids. The table stays as <code>legacy_memories</code>. Remember, forget and the Settings form keep working, now with history.</li>
+<li><strong>Writing system collections:</strong> system collections can be read through the collections API, but writes go through Settings (or remember/forget). A session therefore cannot add itself a hook or a policy through <code>records_put</code>.</li>
+<li><strong>Upgrades</strong> now apply pending migrations one version at a time, with each version's checks run straight after it, while the tables those checks read still exist.</li>
+</ul>
+<h3 id="123-services-and-apps-move-outside-the-kernel">12.3 Services and apps: move outside the kernel</h3>
+<table><thead><tr><th>Built today</th><th>Is really</th><th>Becomes</th></tr></thead><tbody>
+<tr><td>The assistant: runs inside the head on a hidden worker row, with its own tools</td><td>A program</td><td>A template with the catalog tools and a root skill, running in a realm (3.6). The kernel provides a way to run sessions inside the head, as a kind of worker.</td></tr>
+<tr><td>Notifications and web push</td><td>A service</td><td>A subscriber to events; channels are a collection</td></tr>
+<tr><td>Workflows</td><td>The shell</td><td>Kept as the way to combine programs. Approve steps are decisions, notify steps are trigger actions, and run state can be records.</td></tr>
+<tr><td>The memex's understanding steps (summaries, topics, commitments, captions, system pages)</td><td>Services, with prompts in code</td><td>Prompts become root skills; jobs start from ingest events through triggers</td></tr>
+<tr><td>Gmail, Calendar and Contacts sync</td><td>Drivers</td><td>Unchanged; they already store through the ingest handlers</td></tr>
+<tr><td>The mail client, calendar and photos pages</td><td>Built-in apps</td><td>Their rich UIs stay, using only public operations. Mail rules, "needs reply" and triage become triggers and views.</td></tr>
+</tbody></table>
+<h3 id="124-search">12.4 Search</h3>
+<p>The head has its own full-text index of sessions, and the memex has another. The memex is optional, so the head keeps a small kernel index. When a memex is connected, it is the search service, and session search goes through it.</p>
+<h3 id="125-keeping-the-boundary">12.5 Keeping the boundary</h3>
+<p>In a single Rust head, "services use only public operations" is a rule, checked in code review and by tests: services call the catalog's operations, not each other's internals. If it proves necessary, services can later run as separate processes that can only reach the catalog.</p>
+<h2 id="13-upgrading-existing-data">13. Upgrading existing data</h2>
+<p>carbon6 already holds real data. Every step of the build order upgrades it to the new representation automatically, when the new version starts.</p>
+<h3 id="131-principles">13.1 Principles</h3>
+<ol>
+<li><strong>A backup first.</strong> Before a step changes data, the head copies its database (SQLite <code>VACUUM INTO</code>) next to it, with the version and time in the name. The memex does the same for its store. Backups stay until you delete them. <code>master.key</code> is never touched.</li>
+<li><strong>All or nothing.</strong> Each step's migration runs in one transaction per database. If it fails, it rolls back and the head refuses to start, saying why. The database is unchanged, so the previous version still runs on it.</li>
+<li><strong>Nothing is lost.</strong> Every field moves somewhere. Anything without a place in the new shape is kept in a <code>legacy</code> field on the new record, never dropped.</li>
+<li><strong>Identity is kept.</strong> Session, item, thing and fact ids stay the same, so links, <code>@</code>-mentions and history keep working. Where an id has to change (action items' numbers become decision ids), a map is kept, so old references such as "action item #12" still resolve.</li>
+<li><strong>Checked.</strong> After migrating, counts and totals are compared per kind of object: settings entries, action items, automations, sessions, spend. An upgrade report is kept under <strong>Settings → System → Upgrades</strong>.</li>
+<li><strong>Large data in the background.</strong> Big memex tables (items, parts, vectors) get their realm in batches, with a progress marker, while the memex keeps serving. A step finishes only when every batch is done.</li>
+<li><strong>Old tables stay for one release,</strong> renamed <code>legacy_*</code> and read-only. A later release drops them only after you confirm, as a decision.</li>
+<li><strong>Try it first:</strong> <code>c6h upgrade --check</code> runs the migration on a copy of the database and prints the report without touching the real one; <code>c6h upgrade</code> upgrades without starting the head. The same goes for <code>c6m</code>.</li>
+<li><strong>Going back</strong> means restoring the backup. There is no automatic downgrade, because new data written after the upgrade has no old shape.</li>
+<li><strong>Tested against real shapes.</strong> Every migration is tested on databases created by each earlier version (synthetic data, never yours), from that version's schema through the latest.</li>
+</ol>
+<h3 id="131a-as-built-step-0">13.1a As built (step 0)</h3>
+<ul>
+<li><strong>The machinery</strong> is <code>c6_core::upgrade</code> (feature <code>upgrade</code>), used by the head's and the memex's stores:
+<ul>
+<li><strong>Backup:</strong> pending migrations are found by comparing the migrator with <code>_sqlx_migrations</code>. Before any runs, the database is copied with <code>VACUUM INTO</code> to <code>backups/&lt;name&gt;-v&lt;from&gt;-to-v&lt;to&gt;-&lt;UTC time&gt;.db</code>.</li>
+<li><strong>Checks:</strong> after migrating, every table's row count is compared with before. A table may shrink or vanish only if a pending migration names it in the store's <code>Plan</code> (<code>Allow</code>). <code>Check</code>s compare a query on the backup (attached as <code>before</code>) with one on the upgraded database.</li>
+<li><strong>Restore:</strong> a failed migration, lost rows or a failed check close the pool, put the backup back (removing the WAL files), and return an error naming the backup.</li>
+<li><strong>Reports:</strong> each upgrade's report is stored in the database's own <code>upgrades</code> table.</li>
+</ul>
+</li>
+<li><strong>Commands:</strong> <code>c6h upgrade [--check]</code> and <code>c6m upgrade [--check]</code>. <code>--check</code> copies the database to a temporary directory and upgrades the copy.</li>
+<li><strong>Seeing them:</strong> <code>GET /api/v1/system/upgrades</code> (operation <code>system.upgrades</code>) and <strong>Settings → System</strong> list the head's and the memex's reports.</li>
+<li><strong>Test databases:</strong>
+<ul>
+<li><code>crates/c6-head/fixtures/c6h-v0027.db</code> and <code>crates/c6-memex/fixtures/memex-v0006.db</code> hold synthetic data in today's shape. A real head, worker and memex filled them through the API, then one synthetic row went into each table the API didn't reach. The head's includes a session waiting for approval and a workflow waiting at its approve step; the memex's includes a mail thread, documents, notes, a trail, and facts with a dispute.</li>
+<li><strong>Regenerating them:</strong> the <code>make_head_fixture</code> and <code>make_memex_fixture</code> tests (<code>--ignored</code>) regenerate them. Run them before a step changes a schema, so the old shape is kept as a new file.</li>
+<li><strong>Testing against them:</strong> <code>head_fixtures_upgrade_and_serve</code> and <code>memex_fixtures_upgrade_and_serve</code> upgrade every saved database (with <code>--check</code> first, then for real). They then serve it, by starting a head on it and opening the memex's store, and check that its data comes back.</li>
+</ul>
+</li>
+<li><strong>Not built yet:</strong> the <code>legacy_*</code> convention (13.1, rule 7) has nothing to keep so far. It arrives with the first step that moves data.</li>
+</ul>
+<h3 id="132-head-what-moves-where">13.2 Head: what moves where</h3>
+<table><thead><tr><th>Data today</th><th>After</th></tr></thead><tbody>
+<tr><td><code>sessions</code>, <code>events</code>, <code>run_sessions</code></td><td>Unchanged, in home</td></tr>
+<tr><td>Settings lists: <code>agents</code>, <code>commands</code>, <code>skills</code>, <code>hooks</code>, <code>mcp_servers</code>, <code>templates</code>, <code>workflows</code>, <code>memex_folders</code>, <code>memex_scopes</code></td><td>Records in system collections, in home (step 3)</td></tr>
+<tr><td>Settings lists: <code>policies</code>, <code>budgets</code></td><td>Records in system collections, in root, so every realm inherits them (step 3)</td></tr>
+<tr><td>Settings lists: <code>routes</code>, <code>prices</code>, <code>channels</code>, <code>hosts</code></td><td>Records in system collections, in root (routes, prices) or home (channels, hosts) (step 3)</td></tr>
+<tr><td>Single settings: <code>public_url</code>, <code>web_search</code>, <code>assistant</code>, <code>memex</code></td><td>Records in the <code>config</code> collection, in root (step 3)</td></tr>
+<tr><td><code>memories</code></td><td>Records in the <code>memory</code> collection, in home (step 3)</td></tr>
+<tr><td><code>todos</code></td><td>Decisions, with kinds and states mapped and an id map (step 4)</td></tr>
+<tr><td>Pending tool-call approvals, and workflow runs waiting at an approve step (<code>workflow_runs</code>)</td><td>Open decisions, still answerable (step 4)</td></tr>
+<tr><td><code>automations</code>, <code>automation_runs</code></td><td>Triggers and their runs. Webhook URLs keep working: their stored hashes move unchanged (step 5)</td></tr>
+<tr><td><code>usage</code></td><td>Points in the spend and token series, by session, model and labels. Totals per day are checked against the old table (step 6)</td></tr>
+<tr><td><code>host_checks</code></td><td>Points in a <code>host_check</code> series by host (step 6)</td></tr>
+<tr><td><code>secrets</code></td><td>Home (step 1)</td></tr>
+<tr><td><code>api_tokens</code></td><td>Root tokens, which reach every realm, as today. New tokens can be scoped (step 1)</td></tr>
+<tr><td><code>workers</code>, <code>connections</code></td><td>Available to every realm, as today (step 1)</td></tr>
+<tr><td><code>passkeys</code>, <code>auth_sessions</code>, <code>login_links</code>, <code>enrollments</code>, <code>push_subscriptions</code>, <code>google_accounts</code></td><td>Root, unchanged</td></tr>
+<tr><td><code>memex_outbox</code></td><td>Unchanged; queued entries are for home</td></tr>
+<tr><td>Search tables</td><td>Rebuilt with realms: they are derived</td></tr>
+</tbody></table>
+<h3 id="133-memex-what-moves-where">13.3 Memex: what moves where</h3>
+<table><thead><tr><th>Data today</th><th>After</th></tr></thead><tbody>
+<tr><td>Items, parts, vectors, things, links, evidence, trails, mail, calendars, contacts, media, faces, files, sync state</td><td>In home (step 1, in batches). Things are keyed per realm.</td></tr>
+<tr><td><code>facts</code></td><td>A <code>facts</code> collection in home, in the head, keeping ids. The memex keeps its search mirror. This runs as a background job when the memex connects after the upgrade (step 3).</td></tr>
+<tr><td><code>commitments</code>, <code>trails</code></td><td>Collections in home, the same way (step 3)</td></tr>
+<tr><td><code>review</code></td><td>Open decisions (step 4)</td></tr>
+<tr><td><code>model_calls</code></td><td>Points in the memex model-call series (step 6)</td></tr>
+</tbody></table>
+<h3 id="134-workers">13.4 Workers</h3>
+<p>Workers' journals hold sessions' events, and need no migration. The head decides a session's realm, so workers don't need to know it. New protocol fields are additive, so workers on the previous version keep working until they're updated.</p>
+<h3 id="135-the-order-across-machines">13.5 The order across machines</h3>
+<ul>
+<li><strong>Head first.</strong> Until the memex is upgraded, the head treats it as home-only and leaves the realm features that need it (grants on memex data, commons) unavailable.</li>
+<li><strong>The memex next,</strong> whenever it next starts on the new version. It migrates in the background (13.1, rule 6).</li>
+<li><strong>Workers whenever you like</strong> (13.4).</li>
+</ul>
+<h2 id="14-decisions-made-while-building">14. Decisions made while building</h2>
+<p>Choices the design left open, made while building, for review.</p>
+<table><thead><tr><th>Step</th><th>Decision</th><th>Why</th></tr></thead><tbody>
+<tr><td>0</td><td>The upgrade machinery lives in <code>c6_core::upgrade</code> (feature <code>upgrade</code>), shared by the head and the memex</td><td>One implementation of backups, checks and restore for both databases</td></tr>
+<tr><td>0</td><td>The fixtures are filled through the real API, then one synthetic row goes into each table the API didn't reach</td><td>Realistic shapes where it matters (settings, sessions, approvals), and full coverage everywhere else</td></tr>
+<tr><td>1</td><td>The assistant's conversations move to root</td><td>They do carbon6's administration (3.6)</td></tr>
+<tr><td>1</td><td>Root keeps no memex knowledge: its sessions' digests are no longer sent to the memex</td><td>Root is administration; the memex has no root partition</td></tr>
+<tr><td>1</td><td>The memex gets realm columns and a gatekeeper in step 1; per-realm queries and things keyed per realm come in step 4</td><td>Grants on memex data (step 4) redo the same queries; until a second realm can exist, only home's data is there and nothing can cross</td></tr>
+<tr><td>1</td><td>A realm-scoped token may read workers, connections and their models, commands, the catalog and the OpenAPI document</td><td>It needs them to start sessions; they hold no realm's data</td></tr>
+<tr><td>1</td><td>Usage, live updates, settings and workflows are root-only for tokens</td><td>They span realms, or are configuration (until step 2 makes configuration per realm)</td></tr>
+<tr><td>1</td><td>A valid token scopes even with sign-in off</td><td>A script given a realm's token expects to stay in that realm</td></tr>
+<tr><td>1</td><td>Secrets are asked for as <code>secret:NAME@&lt;session&gt;</code>, not with a new protocol field</td><td>Keeps the worker's per-session cache separate with no protocol change; older workers still get home's secrets</td></tr>
+<tr><td>1</td><td>Tokens cannot be limited to root</td><td>A root token is one with no realm</td></tr>
+<tr><td>2a</td><td>The schema checker is written in carbon6, not a JSON Schema library</td><td>Collections need a strict subset (closed objects), clear messages, and no large new dependency</td></tr>
+<tr><td>2a</td><td>A schema change is allowed exactly when every existing record still fits</td><td>That is "additive" stated as a rule the head can check; anything else needs a migration (step 3)</td></tr>
+<tr><td>2a</td><td>Records are mirrored into the memex only for non-system collections</td><td>System collections are configuration (step 2b), not knowledge</td></tr>
+<tr><td>2a</td><td>Forms list required fields first, then the rest alphabetically</td><td>JSON objects come back sorted, so the schema's own order is lost</td></tr>
+<tr><td>2b</td><td>The head's settings store routes the list keys to system collections</td><td>Every endpoint, form and reader keeps working with no rewrite; only what builds a session's configuration asks for the realm's effective lists</td></tr>
+<tr><td>2b</td><td>Settings forms stay hand-written for now</td><td>They write the same records; generating them from the schemas (decision above) can replace them one by one once a generated form does everything a hand-written one does</td></tr>
+<tr><td>2b</td><td>The single settings (public URL, web search, the assistant's model, memex settings) stay as they are</td><td>They are root configuration, not lists; there is no gain yet in making them records</td></tr>
+<tr><td>2b</td><td>Facts, commitments and trails stay in the memex for now</td><td>They are already strict tables there; moving them into the head means rewriting the memex's knowledge code, which step 4 revisits along with per-realm memex queries</td></tr>
+<tr><td>2b</td><td>System collections are written through Settings and remember/forget only, never through the generic records API</td><td>Their writers check them; and a session must not be able to give itself hooks or loosen policies</td></tr>
+<tr><td>2b</td><td>Upgrades check each migration right after it runs</td><td>A later migration may rename a table an earlier check reads</td></tr>
+<tr><td>2c</td><td>carbon6's prompts are a <code>prompts</code> system collection in root, not root skills</td><td>Skills are things agents load by name; these are carbon6's own instructions, with defaults that follow the code until edited</td></tr>
+<tr><td>2c</td><td>A prompt nobody edited follows its default when the default changes; an edited one never does</td><td>Improvements reach you unless you chose otherwise</td></tr>
+<tr><td>2c</td><td>Tool descriptions stay in code</td><td>They describe what the code does, and change with it; editing one could misdescribe a tool</td></tr>
+<tr><td>3</td><td>Decisions are the <code>todos</code> table, renamed and widened, not a new table</td><td>Ids stay the same by construction, so references keep working</td></tr>
+<tr><td>3</td><td>An agent's <code>decision_request</code> never blocks; the answer arrives as a message</td><td>No new waiting machinery on workers; the agent keeps working, and the answer resumes it like any message</td></tr>
+<tr><td>3</td><td>Tool-call approvals keep their own path (the session's buttons, the signed link) and open a decision alongside</td><td>The worker's approval protocol stays as it is; the decision is the one place you see everything, and either side settles the other</td></tr>
+<tr><td>3</td><td>A question asking for a secret is never answered through decisions</td><td>Answers are stored; secrets must not be</td></tr>
+<tr><td>3</td><td>The memex's review queue stays in the memex for now</td><td>It needs the memex to raise and resolve decisions over the fabric; step 4 revisits the memex</td></tr>
+<tr><td>3</td><td>Digests are left for triggers (step 5)</td><td>A digest is a scheduled notification of open decisions, which is exactly a trigger</td></tr>
+<tr><td>4a</td><td>A realm is deleted only when it owns nothing</td><td>Removing a realm with its data belongs to an app's uninstall (step 9), with an export first</td></tr>
+<tr><td>4a</td><td>Per-realm settings use a request-scoped realm read by the settings store</td><td>Every settings endpoint and form works per realm without being rewritten</td></tr>
+<tr><td>4a</td><td>The realm switcher lives in the browser, and "All realms" shows everything</td><td>Single user: it is a view, not a permission</td></tr>
+<tr><td>4b</td><td>Another realm's memex knowledge is a separate database, not realm columns on shared tables</td><td>Isolation by construction: no query can leak, things are naturally per realm, a realm's knowledge is deleted with its file, and grants (4c) become reads across databases</td></tr>
+<tr><td>4b</td><td>Deleting a realm drops its memex knowledge too</td><td>A realm is deleted only when it owns no sessions, records or decisions; what the memex derived from them goes with it</td></tr>
+<tr><td>4c</td><td>A grant's <code>where</code> is kept as a second filter, not merged into the query's</td><td>Merging lets a query's own condition on the same field replace the grant's</td></tr>
+<tr><td>4c</td><td>Changing or deleting another realm's records has no grant mode</td><td>The design's modes are read, append, snapshot and call; a realm that should change records owns them</td></tr>
+<tr><td>4c</td><td>A memex read grant with no kinds allows what the session may see anyway</td><td>The grant opens the realm; the session's scope still decides the kinds, as in its own realm</td></tr>
+<tr><td>4c</td><td>A granted mail or calendar operation also lets that call see email and events</td><td>The grant names the operation; without the kinds it could not work</td></tr>
+<tr><td>4c</td><td>Grants are root-only in the API; agents ask with <code>grant_request</code></td><td>Only you create grants (3.7)</td></tr>
+<tr><td>4c</td><td>Searching across granted realms merges hits by score, each tagged with its realm</td><td>One search answers across what the realm may read, and you can see where each hit came from</td></tr>
+<tr><td>4d</td><td>Commons is a realm like any other, made on upgrade</td><td>Collections, knowledge, briefs and grants work there unchanged; only its rules differ</td></tr>
+<tr><td>4d</td><td>Reading commons needs no grant row; a per-realm switch turns it off</td><td>"Every realm reads commons by default; you can turn that off per realm" (3.7), without a grant per realm to manage</td></tr>
+<tr><td>4d</td><td>A proposal is a decision holding the item; nothing is written to commons until you publish it</td><td>Nothing unreviewed is ever readable by other realms, and rejecting leaves nothing to clean up</td></tr>
+<tr><td>4d</td><td>Knowledge gets an append mode only for commons</td><td>Publishing facts needs it; a realm's knowledge is otherwise its own</td></tr>
+<tr><td>4d</td><td>A published fact enters commons as reviewed</td><td>You reviewed it as you published it</td></tr>
+<tr><td>4d</td><td>Commons' proposals are decisions in commons</td><td>The review queue belongs to commons, and you see all realms' decisions anyway</td></tr>
+<tr><td>4d</td><td>Deleting a realm revokes its grants instead of deleting them</td><td>The log of what flowed is kept</td></tr>
+<tr><td>5</td><td>Automations became triggers by renaming their tables, not by moving them</td><td>Ids, webhook URLs and history stay by construction; <code>/api/v1/automations</code> keeps answering for scripts</td></tr>
+<tr><td>5</td><td>Actions run in the request that caused them, not in the background</td><td>The chain of triggers rides along with the action (a task-local), and what you change is consistent when the call returns; a start action only starts sessions</td></tr>
+<tr><td>5</td><td>The chain is not carried through sessions a start action begins</td><td>A session's later events are its own; the hourly limit still bounds triggers that start sessions that fire them</td></tr>
+<tr><td>5</td><td>Built-in notifications stay as they are; triggers add a notify action for any event</td><td>The channels' event lists already are a subscription; a trigger is how you subscribe to anything else</td></tr>
+<tr><td>5</td><td>Changes to system collections (settings) are not record events</td><td>They are written through Settings, not as records, and firing on configuration changes invites loops</td></tr>
+<tr><td>5</td><td>Series events and "record a value" wait for series (step 6)</td><td>They need the primitive</td></tr>
+<tr><td>5</td><td>Per-trigger budgets are the existing budgets on the <code>automation:&lt;name&gt;</code> label</td><td>Start actions' sessions already carry it; other actions cost nothing</td></tr>
+<tr><td>6</td><td>Model usage stays in its ledger and is offered as computed series, not copied into points</td><td>The ledger is keyed per call (exactly-once from workers), and cost is applied at today's prices so fixing a price corrects history; stored spend points could not do either</td></tr>
+<tr><td>6</td><td>Budgets stay budgets (a list in Settings that stops spending)</td><td>They already check the same spend the <code>model_spend</code> series shows; thresholds on <code>model_spend</code> add warnings and actions on top</td></tr>
+<tr><td>6</td><td>Host check history goes into home</td><td>Hosts are your infrastructure, and home's triggers can then watch them; root holds no data</td></tr>
+<tr><td>6</td><td>Thresholds fire on the change (crossed, cleared), not on every check</td><td>A threshold that stays crossed would otherwise notify every minute</td></tr>
+<tr><td>6</td><td>A threshold with nothing recorded counts from when the trigger was made, for silence</td><td>A heartbeat that never started is as silent as one that stopped</td></tr>
+<tr><td>6</td><td>Series aren't covered by grants yet</td><td>No example needed series across realms; a grant of kind series can follow the collection grant's shape when one does</td></tr>
+<tr><td>6</td><td>The memex's model-call budget stays in the memex</td><td>It is the memex's own database; it can become a series when the memex reports points to the head</td></tr>
+<tr><td>7</td><td>Views are a system list, not a table of their own</td><td>They are configuration: per realm, inherited from root, with history, and edited like every other list</td></tr>
+<tr><td>7</td><td>The usage and decisions pages stay; views reproduce them as presets (a chart of <code>model_spend</code>, a feed of open decisions)</td><td>Those pages do more than a view can yet (budget editing, forms, snoozing); a preset shows the same data the configurable way</td></tr>
+<tr><td>7</td><td>A page cannot embed a page</td><td>No loops, and one level is what dashboards need</td></tr>
+<tr><td>7</td><td>An action's template runs in the view's realm, with the record as JSON input</td><td>The record's id, fields and links are all an agent needs, and the label ties the sessions back to the record</td></tr>
+<tr><td>7</td><td>Below <code>xl</code> the header's less-used links and Views go into the ☰ menu</td><td>The header overflowed at 1024px once the realm switcher arrived; now everything stays reachable without overlap</td></tr>
+<tr><td>8</td><td>The assistant stays the head's built-in program, not a template on a worker</td><td>Its catalog tools run in the head; what makes it configurable is already configuration: its prompt (per realm), its model (Settings → Assistant), and routing by its label</td></tr>
+<tr><td>8</td><td>In a realm, its calls are admitted exactly as that realm's token</td><td>One rule for everything that acts in a realm; nothing new to keep in step</td></tr>
+<tr><td>8</td><td>Discovery still lists every operation</td><td>Admission refuses what a realm may not do, with a reason the assistant passes on; filtering the catalog per realm can come with apps</td></tr>
+<tr><td>9</td><td>Packages are JSON, not YAML</td><td>The head has no YAML parser, and adding one means a new dependency; JSON is what the API and exports speak</td></tr>
+<tr><td>9</td><td>Contents are written through the head's own API</td><td>One set of checks for Settings, agents and apps, with nothing duplicated</td></tr>
+<tr><td>9</td><td>An upgrade compares normalized entries</td><td>Settings stores entries with defaults filled in; comparing raw package text would see edits that never happened</td></tr>
+<tr><td>9</td><td>Secrets are never part of a package or an install decision</td><td>Decisions are stored; secret values go in through Settings → Secrets only</td></tr>
+<tr><td>9</td><td>Removing keeps model usage in the ledger</td><td>Spend already happened; budgets and history should still see it</td></tr>
+<tr><td>9</td><td>Two test races fixed on the way (decisions, usage)</td><td>They read a result right after a signal that can arrive first; they now wait for the result itself</td></tr>
+<tr><td>10</td><td>A realm's templates and workflows are its own plus root's, not home's</td><td>Home is a realm like the others; an app must run with the templates it brought, and nothing of home's should leak into it</td></tr>
+<tr><td>10</td><td>Memex events reach realms granted reads of that kind</td><td>A read grant on mail is the permission to know about new mail; each event is logged on the grant</td></tr>
+<tr><td>10</td><td>The gaps the examples found are written down, not worked around in code</td><td>They need new primitives (finer grant scopes, lookups in filters, per-dimension and series-to-series thresholds, date events); the examples work around them in configuration</td></tr>
+</tbody></table>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/os.md">docs/os.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-goals">1. Goals</a></li><li><a href="#2-the-model">2. The model</a></li><li><a href="#3-realms">3. Realms</a></li><li><a href="#4-primitives">4. Primitives</a></li><li><a href="#5-apps">5. Apps</a></li><li><a href="#6-worked-examples">6. Worked examples</a></li><li><a href="#7-guarantees">7. Guarantees</a></li><li><a href="#8-what-changes-in-todays-features">8. What changes in today's features</a></li><li><a href="#9-build-order">9. Build order</a></li><li><a href="#10-decisions">10. Decisions</a></li><li><a href="#11-open-questions">11. Open questions</a></li><li><a href="#12-revisiting-whats-built">12. Revisiting what's built</a></li><li><a href="#13-upgrading-existing-data">13. Upgrading existing data</a></li><li><a href="#14-decisions-made-while-building">14. Decisions made while building</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

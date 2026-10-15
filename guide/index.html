@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Guide · carbon6</title><meta name="description" content="Using carbon6: sign-in, workers, the command line, the assistant, automations, the memex, and the rest of the head's features."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/guide/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Guide · carbon6"><meta property="og:description" content="Using carbon6: sign-in, workers, the command line, the assistant, automations, the memex, and the rest of the head's features."><meta property="og:url" content="https://carbon6.dev/guide/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/">Docs</a><a href="/guide/" aria-current="page">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout no-sidebar"><article class="prose"><h1>Guide</h1><p class="lede">Everything after installing: signing in, adding workers, and the head's features one by one.</p><div><h2 id="run">Run</h2>
+<p>On the head machine:</p>
+<pre><code class="language-bash">c6h               # binds private/tailnet addresses only; prints the web UI URL
+</code></pre>
+<ol>
+<li>Sign in: run <code>c6h login-link</code> on the head and open the link it prints (it works once, for 15 minutes). Then add a passkey under <strong>Settings → Sign-in</strong>, and sign in with Touch ID, Face ID or a security key from then on. A new link always gets you back in.
+<ul>
+<li>To sign in another device (a phone), create a one-time code under <strong>Settings → Sign-in → Sign in another device</strong> and type it into that device's sign-in page. Codes work once, for 10 minutes; five wrong codes cancel all outstanding ones.</li>
+</ul>
+</li>
+<li>In the UI, add an LLM connection under <strong>Settings</strong>. For a local Ollama, use <code>http://127.0.0.1:11434/v1</code> with no key.</li>
+<li>On the <strong>Workers</strong> page, click <strong>Add worker</strong>, then run the printed command on the worker machine (or create a token with <code>c6h enroll-token</code> on the head):</li>
+</ol>
+<pre><code class="language-bash">c6w enroll c6e1.…
+c6w run
+</code></pre>
+<h3 id="command-line-c6">Command line (<code>c6</code>)</h3>
+<p><code>c6</code> runs sessions headless, for scripts and terminals. It signs in with an API token: create one under <strong>Settings → Sign-in → API tokens</strong> (or with <code>c6h api-token</code> on the head), then:</p>
+<pre><code class="language-bash">c6 login https://head.example:7700 --token c6_… --ca carbon6-ca.pem   # --ca only if the head signs its own certificate
+</code></pre>
+<ul>
+<li><strong><code>c6 run "fix the failing test"</code></strong> starts a session in the current folder on the only online worker (or <code>--worker</code>, <code>-C &lt;dir&gt;</code>, <code>-c &lt;connection&gt;</code>, <code>-m &lt;model&gt;</code>; the model defaults to your latest session's). It prints the reply as the agent works, with tool calls on stderr, and exits 0 when the turn completes, 1 when it fails, or 130 when interrupted (Ctrl-C interrupts it). The prompt can come from stdin, and <code>--json</code> prints events as JSON lines.</li>
+<li><strong><code>c6 send &lt;id&gt; "…"</code></strong> continues a session (a unique id prefix is enough). Also: <code>c6 wait</code>, <code>c6 show</code> (Markdown), <code>c6 stop</code>, <code>c6 sessions</code>, <code>c6 search</code> and <code>c6 workers</code>.</li>
+<li><strong><code>c6 ops [words]</code></strong> finds operations, meaning everything you can do in carbon6 (with no words, it lists the areas; with an operation's name, it shows its input).</li>
+<li><strong><code>c6 op &lt;name&gt; key=value…</code></strong> runs one and prints the result as JSON, for example <code>c6 op workers.enrollments.create body='{"name":"build-1"}'</code> or <code>c6 op connections.models id=&lt;id&gt;</code>. Destructive operations ask first, or skip the question with <code>--yes</code>.</li>
+<li><strong>API tokens</strong> reach the whole API except sign-in management, or only one realm's data if you limit them (<code>c6h api-token --realm home</code>, or the realm choice under Settings → Sign-in → API tokens). Revoke them in Settings. <code>C6_URL</code>, <code>C6_TOKEN</code> and <code>C6_CA</code> override the saved login.</li>
+<li><strong>The API reference:</strong>
+<ul>
+<li><code>GET /api/v1/openapi.json</code> describes the whole API as OpenAPI 3.1, generated from the same catalog, for code generation.</li>
+<li>Agents writing an integration in a session use the <code>carbon6_api</code> tool. It gives the base URL, how to authenticate, and each operation's method, path and input, and can save the OpenAPI document into the project. It only reads the reference; the code it writes calls carbon6 with your token.</li>
+</ul>
+</li>
+</ul>
+<h3 id="the-assistant">The assistant</h3>
+<p><strong>✦ Ask</strong> in the header (⌘J) asks carbon6 to do anything you can do in the UI, or to explain your setup. For example:</p>
+<ul>
+<li>"What can I do in carbon6?"</li>
+<li>"Which models are set up for vision?"</li>
+<li>"Create an enrollment token for a new worker"</li>
+</ul>
+<p>How it works:</p>
+<ul>
+<li><strong>It runs in the head</strong>, so it works before any worker is attached.</li>
+<li><strong>It finds operations</strong> in a catalog of everything the UI does. A test keeps that catalog complete.</li>
+<li><strong>It asks for missing details with a form</strong> in the conversation, with choices from your actual workers, connections and sessions.</li>
+<li><strong>Secrets never pass through the model.</strong> Tokens and codes it creates are shown only to you, in a card. Secrets you give it (API keys) stay out of the model too.</li>
+<li><strong>It waits for your approval before anything destructive</strong>, such as deleting, revoking, sending mail, or replacing a list with fewer entries.</li>
+<li><strong>Its model is set under Settings → Assistant.</strong> Its conversations have the label <code>assistant</code>, so routes, policies and budgets for that label apply.</li>
+<li><strong>The design is in <a href="/docs/assistant/">docs/assistant.md</a>.</strong></li>
+</ul>
+<h3 id="collections">Collections</h3>
+<p>Collections are typed tables of records in a realm, for anything apps and agents keep: candidates, contacts, experiments, inventories. See them under <strong>Collections</strong>.</p>
+<ul>
+<li><strong>Strict:</strong> each collection has a JSON Schema. A record must match it exactly: no fields the schema doesn't name, every required one, the right types and values. Optional unique keys (such as <code>name</code>) are kept unique.</li>
+<li><strong>Safe to share:</strong> an update gives the version it read, so two writers can't silently overwrite each other. Every change is kept, with who made it (you, a session, or a token).</li>
+<li><strong>Agents:</strong> sessions use <code>records_query</code>, <code>records_get</code>, <code>records_put</code> and <code>records_delete</code>, within their realm. Records are also searchable in the memex and can appear in session briefs.</li>
+<li><strong>Code:</strong> <code>/api/v1/collections…</code> (see <code>carbon6_api</code> or <code>/api/v1/openapi.json</code>). A query filters by field (<code>{"where": {"score": {"$gte": 8}}}</code>), by words, sorts, pages, or counts per value.</li>
+<li><strong>Changing a schema:</strong> a new schema is accepted if every record already there still fits.</li>
+</ul>
+<h3 id="environment-knowledge-and-decisions">Environment knowledge and Decisions</h3>
+<ul>
+<li>
+<p><strong>Environment knowledge:</strong> agents record what they learn about the systems around the code (CI, clusters, networks, hosts) as facts in the memex. Each fact says how it is known (reviewed, verified, observed, inferred), where it applies, and how to re-check it. Every session starts with the relevant facts, and contradictions become decisions.</p>
+</li>
+<li>
+<p><strong>Decisions:</strong> everything that needs you is in one list under <strong>Decisions</strong>:</p>
+<ul>
+<li>tool calls waiting for approval;</li>
+<li>workflow steps waiting for a go-ahead;</li>
+<li>the assistant's questions;</li>
+<li>questions agents asked without stopping (<code>decision_request</code>: the answer comes back to the session as a message);</li>
+<li>facts to confirm, and disputes.</li>
+</ul>
+<p>Answer with an option, a form or a note, or start a session that helps you settle one. Answering one answers what waits on it, and answering in the session settles the decision. With options, a notification carries a link that answers it from your phone. With a deadline, an unanswered decision takes its default answer.</p>
+</li>
+<li>
+<p><strong>The design:</strong> see <a href="/docs/os/">docs/os.md</a> §4.2 and <a href="/docs/follow-through/">docs/follow-through.md</a> §6.</p>
+</li>
+</ul>
+<h3 id="configuration">Configuration</h3>
+<ul>
+<li><strong>Head:</strong> <code>c6h.toml</code>, optional (see <code>crates/c6-head/src/config.rs</code>): <code>~/Library/Application Support/c6h/c6h.toml</code> on macOS, <code>~/.config/c6h/c6h.toml</code> on Linux, or <code>--config</code>.
+<ul>
+<li>State (database, <code>master.key</code>, CAs) lives in <code>data_dir</code>: by default <code>~/Library/Application Support/c6h</code> (macOS) or <code>~/.local/share/c6h</code> (Linux). Back up <code>c6h.db</code> and <code>master.key</code> together.</li>
+<li>Add any names you reach the head by to <code>extra_names</code>; the head refuses requests addressed to other names. Its Tailscale MagicDNS name is added automatically.</li>
+<li>Passkeys need HTTPS (or <code>http://localhost</code>). <code>ui_tls_head_ca = true</code> makes the head issue its own certificate from a private CA, so its names never appear in public Certificate Transparency logs (as they would with Let's Encrypt or Tailscale certificates). Trust that CA once per device:
+<ul>
+<li>Mac (Chrome and Safari use the macOS Keychain): <code>curl -so /tmp/carbon6-ca.pem http://&lt;head&gt;:7700/ca.pem</code>, then <code>sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/carbon6-ca.pem</code>, and restart the browser. (Or open the file in Keychain Access and set Trust → Always Trust.)</li>
+<li>iPhone, iPad: open <code>http://&lt;head&gt;:7700/ca.mobileconfig</code>, install the profile in Settings, then enable it under General → About → Certificate Trust Settings.</li>
+<li>Android: download <code>http://&lt;head&gt;:7700/ca.crt</code> in Chrome, then Settings → Security &amp; privacy → More security settings → Encryption &amp; credentials → Install a certificate → CA certificate, and pick <code>carbon6-ca.crt</code> (menu names vary a little by phone; search Settings for "CA certificate"). Android then shows a "network may be monitored" notice; that is expected for any user-installed CA. Then force-stop Chrome (Settings → Apps → Chrome → Force stop): if you ever clicked through the certificate warning, Chrome keeps showing "Not secure" until it restarts.</li>
+<li>Elsewhere: add <code>http://&lt;head&gt;:7700/ca.pem</code> to the system's trusted certificates (Linux: <code>/usr/local/share/ca-certificates</code> + <code>update-ca-certificates</code>).</li>
+<li>The CA is name-constrained to the head's names and private IP ranges, so it cannot vouch for any other site.</li>
+</ul>
+</li>
+<li>Or set <code>ui_tls_cert</code>/<code>ui_tls_key</code> to PEM files. With HTTPS on, plain HTTP on the UI port redirects to the HTTPS name.</li>
+<li>Sign-in is on by default; <code>auth = false</code> turns it off.</li>
+<li>Set <code>otlp_endpoint</code> (or <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>) to export traces.</li>
+<li>MCP servers, slash commands, agents, skills and hooks are configured in the UI (Settings) and stored on the head.</li>
+</ul>
+</li>
+<li><strong>Worker:</strong> its identity lives in <code>~/.local/state/c6w</code> (Linux) or <code>~/Library/Application Support/c6w</code> (macOS).
+<ul>
+<li>For Claude Code sessions, install <code>claude</code> on the worker and sign in there; set <code>C6_CLAUDE_BIN</code> if it is not on the worker's PATH.</li>
+</ul>
+</li>
+</ul>
+<h3 id="upgrades">Upgrades</h3>
+<p>A new version of carbon6 upgrades its databases when it starts: the head's (<code>c6h.db</code>) and the memex's (<code>memex.db</code>). Workers' journals need no upgrading.</p>
+<ul>
+<li><strong>A backup first:</strong> the database is copied to <code>backups/</code> next to it, named with the versions and the time, before anything changes. Backups are kept until you delete them.</li>
+<li><strong>All or nothing:</strong> if a step fails, or a check finds data missing afterwards, the backup is put back and carbon6 refuses to start, saying why. The database is as it was, so the previous version still runs on it.</li>
+<li><strong>Nothing lost silently:</strong> every table must keep its rows, unless the upgrade says it moves or removes them.</li>
+<li><strong>Try it first:</strong> <code>c6h upgrade --check</code> (and <code>c6m upgrade --check</code>) upgrades a copy and prints what would change, leaving your database untouched. <code>c6h upgrade</code> upgrades without starting the head.</li>
+<li><strong>History:</strong> <strong>Settings → System</strong> lists each upgrade with what changed and where its backup is.</li>
+<li><strong>Going back:</strong> stop carbon6 and put the backup in place of the database.</li>
+</ul>
+<h3 id="labels">Labels</h3>
+<p>Sessions carry labels, which group them and decide which settings apply.</p>
+<ul>
+<li><strong>Automatic labels:</strong>
+<ul>
+<li><code>worker:&lt;name&gt;</code>;</li>
+<li><code>repo:&lt;host/owner/name&gt;</code>, from the git remote, so a repository is the same on every machine;</li>
+<li><code>folder:&lt;path&gt;</code>;</li>
+<li><code>model:&lt;model&gt;</code>.</li>
+</ul>
+</li>
+<li><strong>Your own labels:</strong> anything else, like <code>client:acme</code>, <code>spike</code> or <code>rust</code>. Add them when starting a session (they're remembered per folder), in a session's header with <strong>+ label</strong>, or with <code>c6 run -l</code>. A side chat keeps its parent's labels, and <code>/clear</code> keeps them for the fresh session.</li>
+<li><strong>Finding sessions.</strong> The session list, search, the inbox, mission control and the activity dock share one label filter, kept in your browser. Type labels into it (suggestions come from your sessions; <code>repo:github.com/acme</code> covers the whole org), or click any label on a session. The inbox and the dock note how many sessions the filter hides (the dock shows the filter, with a clear button), the Inbox badge counts only what the filter shows (its tooltip gives the rest), browser notifications come only for sessions the filter shows (the toggle reads "🔔 filtered"), and mission control falls back to the most recent matching sessions. The session list's search also matches labels. On the command line, <code>c6 sessions -l &lt;label&gt;</code> and <code>c6 search -l &lt;label&gt; …</code> filter the same way.</li>
+<li><strong>"Applies to".</strong> Commands, agents, skills and hooks each have an <strong>Applies to</strong> field in Settings:
+<ul>
+<li>empty means everywhere;</li>
+<li>otherwise, labels a session must <em>all</em> have, e.g. <code>repo:github.com/acme/app</code> or <code>client:acme, rust</code>;</li>
+<li><code>repo:</code> and <code>folder:</code> match path prefixes, so <code>repo:github.com/acme</code> covers a whole organization and <code>folder:~/code</code> everything under it.</li>
+</ul>
+</li>
+<li><strong>Same name, different labels.</strong> Several commands, agents or skills can share a name if their labels differ; a session gets the most specific one that matches. Every matching hook runs.</li>
+<li><strong>Config tab.</strong> A session's <strong>Config</strong> tab lists what applies to it, and why anything doesn't.</li>
+<li><strong>When changes apply.</strong> Commands follow label changes at once. Agents, skills and hooks are fixed when a session starts.</li>
+</ul>
+<h3 id="memory">Memory</h3>
+<p>Notes kept across sessions (<strong>Settings → Memory</strong>). Each has a scope: one label, like <code>host:web1</code>, <code>repo:github.com/acme/app</code> or <code>client:acme</code>, or none for every session.</p>
+<ul>
+<li><strong>Where they go:</strong> a new session gets the notes for its labels in its instructions, most specific and newest first.</li>
+<li><strong>The agent keeps them current:</strong> it saves durable facts with <code>remember</code> (how a machine is set up, where things are, your preferences), corrects a note by replacing it, and removes stale ones with <code>forget</code>. Each change shows in the transcript.</li>
+<li><strong>Editing:</strong> you can add, edit and delete notes in Settings. Notes written by an agent link to the session that wrote them.</li>
+</ul>
+<h3 id="policies-and-approvals">Policies and approvals</h3>
+<p>Policies (<strong>Settings → Policies</strong>) are rules for the agent's tool calls in sessions with given labels.</p>
+<ul>
+<li><strong>What a rule matches:</strong> a tool-name pattern (<code>Bash|Write|Edit</code>; Claude Code's names work with every model) and an optional pattern over the call's input (<code>rm\s+-rf</code>, <code>git\s+push</code>).</li>
+<li><strong>What it does:</strong>
+<ul>
+<li><strong>deny:</strong> the agent is told why.</li>
+<li><strong>ask:</strong> the call waits for you. The transcript shows what it would run with <strong>Allow</strong> / <strong>Deny</strong>. The session moves to <strong>Needs your approval</strong> at the top of the inbox and the badge, the dock marks it, and a notification fires if the tab is in the background. Denying tells the agent you said no; an hour with no answer counts as no.</li>
+</ul>
+</li>
+<li><strong>Order:</strong> the first matching policy applies.</li>
+<li><strong>Presets:</strong> ask before any change on <code>env:prod</code>, never run destructive commands on prod, ask before package changes or <code>git push</code>, keep <code>research</code> sessions read-only.</li>
+<li><strong>Scope:</strong> policies apply to subagents' calls too. Claude Code sessions aren't covered.</li>
+</ul>
+<h3 id="memex">Memex</h3>
+<p>The memex is your knowledge store: a separate service, <code>c6m</code>, on the same fabric as the workers. It can run on any machine (this one is fine). Its design, and what comes next (documents and papers, Gmail, calendar and contacts, photos and videos), is in <a href="/docs/memex/">docs/memex.md</a>.</p>
+<ul>
+<li>
+<p><strong>Connecting one:</strong> <strong>Settings → Memex → Create an enrollment token</strong>, then on the machine that should hold it, <code>c6m enroll &lt;token&gt;</code> and <code>c6m run</code>. It keeps its store under its state folder.</p>
+</li>
+<li>
+<p><strong>carbon6 → memex:</strong></p>
+<ul>
+<li>every session's digest (what was asked, what tools did, what it concluded);</li>
+<li>published outputs;</li>
+<li>pages your agents read with the browser or web fetch;</li>
+<li>your memory notes.</li>
+</ul>
+<p>Each comes with the session's labels, which become things in the memex's graph (<code>client:acme</code>, <code>host:web1</code>, <code>repo:…</code>). Updates queue on the head while no memex is connected.</p>
+</li>
+<li>
+<p><strong>memex → carbon6:</strong></p>
+<ul>
+<li><strong>Briefs:</strong> a new session starts with a brief from the memex about its labels and its first message (notes, recent sessions about the same things, what else matches), in place of the memory section.</li>
+<li><strong>Tools:</strong> agents get <code>memex_search</code> (keywords and meaning), <code>memex_get</code> (an item in full, or a thing with its notes, items and related things) and <code>memex_note</code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>@-mentions:</strong> typing <code>@</code> in a message also offers things from the memex (people, clients, hosts, topics); <code>@memex:client:acme</code> attaches what the memex knows about it to the message.</p>
+</li>
+<li>
+<p><strong>Documents and papers:</strong> add files on the Memex page (<strong>Add files</strong>) or keep folders in sync (<strong>Settings → Memex folders</strong>, on the memex's machine).</p>
+</li>
+<li>
+<p><strong>Bringing in data from other tools:</strong> <code>memex.ingest</code> (on <code>POST /api/v1/memex/rpc</code>, with an API token) takes batches of items typed by MIME type: mail as <code>message/rfc822</code> (an old archive, for example), and documents as PDF, Word, Markdown, text or HTML. Each item comes back created, updated, duplicate or rejected with the reason. <code>memex.types</code> lists what each type accepts. Imported mail is threaded and searchable like synced mail, is never written back to Gmail, and becomes the synced copy if Gmail later has the same message. Design: <a href="/docs/memex/">docs/memex.md</a> §4.5.</p>
+<ul>
+<li><strong>Formats:</strong> PDF, Word (.docx), Markdown, HTML and text are read.</li>
+<li><strong>Papers</strong> are recognized, with their title, authors, DOI or arXiv id, and the papers they cite. Cited papers become things too, so the memex holds a citation graph. For example, a paper's page lists the papers in your memex that cite it.</li>
+<li><strong>Originals</strong> open from the item.</li>
+</ul>
+</li>
+<li>
+<p><strong>Trails:</strong> named paths through items and things, each step with a note on why it matters. Add steps from any item, or have agents add them with <code>memex_trail</code>. See them under <strong>Memex → Trails</strong>.</p>
+</li>
+<li>
+<p><strong>Search by meaning:</strong> <strong>Settings → Memex</strong> picks an embedding model from one of your connections (Ollama's <code>nomic-embed-text</code>, OpenAI's <code>text-embedding-3-small</code>, …). Without one, search is by keywords.</p>
+</li>
+<li>
+<p><strong>Scopes:</strong> sessions see sessions, outputs, web pages, notes, documents and papers. <strong>Settings → Memex scopes</strong> lets sessions with given labels see more (email, photos, once those are in). You see everything on the <strong>Memex</strong> page, where you can also search, open items and things, delete items, and write notes.</p>
+</li>
+</ul>
+<h3 id="mail-calendar-and-contacts">Mail, calendar and contacts</h3>
+<p>With a memex connected, carbon6 is a client for your Gmail and Google Workspace accounts (☰ → <strong>Mail</strong>, <strong>Calendar</strong>, <strong>Contacts</strong>).</p>
+<ul>
+<li>
+<p><strong>Setup</strong> (<strong>Settings → Mail &amp; calendar</strong>):</p>
+<ul>
+<li>Create an OAuth client in your Google Cloud project (Web application, with the redirect URI shown).</li>
+<li>Enable the Gmail, Calendar and People APIs.</li>
+<li>Set the app to "In production", or "Internal" for Workspace.</li>
+<li>Paste the client ID and secret, then <strong>Add Google account</strong>.</li>
+</ul>
+<p>The head keeps the sign-in encrypted; the memex gets short-lived access only.</p>
+</li>
+<li>
+<p><strong>Mail:</strong></p>
+<ul>
+<li><strong>Import:</strong> your whole mailbox is imported, newest first and resumable, then kept in sync every minute. Labels, read state, archive and drafts sync both ways.</li>
+<li><strong>Views:</strong> Inbox, <strong>Needs reply</strong> (someone else wrote last, to you directly, not a list), <strong>Waiting</strong> (you wrote last, over two days ago), Starred, Sent, Drafts, Archive, Spam, Trash, and your labels.</li>
+<li><strong>Reading:</strong> conversations, with HTML sandboxed and remote images off until you allow them.</li>
+<li><strong>Writing:</strong> Markdown compose, reply and reply all, attachments, drafts, <strong>send later</strong>, and <strong>undo</strong> (messages wait 10 seconds).</li>
+<li><strong>In the graph:</strong> every message is in the memex. Senders and recipients become people (one person across all their addresses), and company domains become organizations.</li>
+<li><strong>Inbox:</strong> carbon6's inbox shows mail that needs a reply.</li>
+</ul>
+</li>
+<li>
+<p><strong>Calendar:</strong></p>
+<ul>
+<li><strong>Sync:</strong> every calendar on every account, synced both ways.</li>
+<li><strong>Views:</strong> agenda, week and month, with recurring events expanded (exceptions included).</li>
+<li><strong>Events:</strong> details, RSVP, delete (this event, this and following, or all), and new events with invitations.</li>
+</ul>
+</li>
+<li>
+<p><strong>Contacts:</strong></p>
+<ul>
+<li>Synced both ways.</li>
+<li>People you write to (and hear from) but who aren't contacts are listed, and <strong>Add to Google contacts</strong> files them in a <code>carbon6</code> group. <strong>Settings → Memex</strong> can do this on its own.</li>
+</ul>
+</li>
+<li>
+<p><strong>Agents:</strong> sessions whose scope includes email (<strong>Settings → Memex scopes</strong>, for example labels <code>mail</code>) get:</p>
+<ul>
+<li><code>mail_threads</code>, <code>mail_thread</code> (mail is marked as untrusted data, never instructions), <code>mail_draft</code> and <code>mail_send</code>;</li>
+<li><code>calendar_events</code> (with free/busy), <code>calendar_create</code> and <code>calendar_rsvp</code>.</li>
+</ul>
+<p>A built-in policy holds <code>mail_send</code>, <code>calendar_create</code> and <code>calendar_rsvp</code> for your approval (switch it off in <strong>Settings → Memex</strong>).</p>
+</li>
+<li>
+<p><strong>Automations on mail:</strong> the trigger <strong>When mail arrives</strong> starts a template or workflow for matching mail (<code>mail.received from:@acme.com subject:invoice</code>), with the message as its input.</p>
+</li>
+</ul>
+<h3 id="browser">Browser</h3>
+<p>Where the worker's machine has Chrome, Chromium, Brave or Edge (or <code>C6_CHROME</code> names one), sessions get a <code>browser</code> tool: a headless browser of their own.</p>
+<ul>
+<li><strong>Actions:</strong> open, read, click, type, select, press, scroll, back, screenshot, evaluate, close.</li>
+<li><strong>Reading:</strong> a page comes back as its text plus a numbered list of links, buttons and fields, which the agent clicks and types into by number.</li>
+<li><strong>Secrets:</strong> <code>type</code> with <code>secret: NAME</code> types a secret's value without the model ever seeing it. Secret values are also hidden from everything the browser returns.</li>
+<li><strong>Profiles:</strong> each session has its own profile under the worker's state folder, so sign-ins last while it works. Profiles unused for 30 days are removed, and a browser idle for 10 minutes is closed (and reopens on the next action).</li>
+<li><strong>Screenshots</strong> go to the session's Outputs.</li>
+<li><strong>Policies</strong> apply as to any tool. The presets include asking before the browser types into or picks options in a page.</li>
+<li><strong>SSH sessions:</strong> the browser runs on the worker, not on the target.</li>
+</ul>
+<h3 id="notifications">Notifications</h3>
+<p>Channels (<strong>Settings → Notifications</strong>) tell you about your sessions while you're away.</p>
+<ul>
+<li><strong>Kinds:</strong> push (your own browsers and phones, see below), ntfy (a phone app; the URL is your topic), a Slack or Discord webhook, any webhook (JSON), or email over SMTP. Tokens and SMTP passwords are secrets.</li>
+<li><strong>Events:</strong> <code>approval</code>, <code>failed</code>, <code>finished</code>, <code>notice</code>, <code>output</code>, <code>automation</code>, <code>budget</code>. A channel without a list gets approvals, failures, notices, automation failures and budgets.</li>
+<li><strong>Scope:</strong> <code>applies_to</code> labels limit a channel to matching sessions (<code>env:prod</code>, <code>automation:</code>).</li>
+<li><strong>Approvals from your phone:</strong> an approval notification links to a page showing the held call with <strong>Allow</strong> / <strong>Deny</strong>. The link is signed, works without signing in, and expires after an hour; answering takes a button press, so chat link previews can't answer for you. Links use the address under the channel list (taken from your browser the first time you save a channel).</li>
+<li><strong>The agent's <code>notify</code> tool:</strong> agents can send you a notice (a title, a few lines, a priority), for example from an automation that finds a problem.</li>
+<li><strong>Testing:</strong> <strong>Send a test</strong> sends a message on a channel and shows any error.</li>
+</ul>
+<p><strong>Web push (no third party):</strong> on each device, <strong>Settings → Notifications → Turn on here</strong>, then add a channel of kind <code>push</code>. The head encrypts each message for each device and sends it to the browser's own push service, signed with its own key. Tapping a notification opens the session, or for an approval its Allow / Deny page.</p>
+<ul>
+<li><strong>Requirements:</strong> HTTPS, or <code>localhost</code>. With the head's own certificate authority, that means a device that trusts <code>/ca.pem</code>.</li>
+<li><strong>iPhone and iPad:</strong> add carbon6 to the Home Screen (Share → Add to Home Screen) and open it from there; iOS only allows web push for home-screen apps.</li>
+<li><strong>Devices:</strong> listed with when they last got a message. A subscription the push service says is gone is removed.</li>
+</ul>
+<p><strong>On a phone:</strong> the head works as a home-screen app (manifest, icon, standalone). Fields use 16px text so iOS doesn't zoom in on them, the composer folds its model picker away, and Usage and mission control fit small screens.</p>
+<h3 id="hosts">Hosts</h3>
+<p>The host inventory (<strong>Settings → Hosts</strong>) lists machines your workers reach over SSH. Each host has a name, an SSH target (<code>user@host[:port]</code> or an <code>~/.ssh/config</code> alias on the worker), an optional worker, labels like <code>role:web</code> and <code>env:prod</code>, and optionally a check interval. carbon6 never handles SSH keys; the worker's own SSH setup is used.</p>
+<ul>
+<li><strong>Sessions:</strong> use a host's name as the SSH target (the new-session form suggests them). The session gets the host's labels, so policies, budgets, routing, memory and secrets for <code>env:prod</code> apply without tagging each run.</li>
+<li><strong>Fleet runs:</strong> a template's <strong>Hosts by label</strong> (<code>role:web, env:prod</code>, or <code>*</code>) starts one session per matching host, through that host's worker.</li>
+<li><strong>Checks:</strong> the <strong>Workers</strong> page lists hosts with their last check (reachable, latency and system, or why not) and a <strong>Check</strong> button. With a check interval, the head checks on its own and sends a <code>host</code> notification when a host stops answering or comes back.</li>
+</ul>
+<h3 id="usage-and-budgets">Usage and budgets</h3>
+<p><strong>Usage and budgets</strong> (in the ☰ menu) shows tokens and cost for the sessions matching the label filter, over today or the last 7, 30 or 90 days: totals, a daily chart, and breakdowns by model, connection, label, and the most expensive sessions (subagents count toward the session that started them).</p>
+<ul>
+<li><strong>Prices</strong> (<strong>Settings → Prices</strong>): USD per million tokens, per model id or prefix (<code>claude-sonnet-*</code>); cache reads and writes default to the input price. Models without a price count as $0, and Usage lists them.</li>
+<li><strong>Budgets</strong> (<strong>Settings → Budgets</strong>): a limit per day, week or month for sessions with given labels (<code>automation:</code>, <code>client:acme</code>, or everything).
+<ul>
+<li><strong>notify:</strong> a <code>budget</code> notification once per period when it's used up.</li>
+<li><strong>block:</strong> the notification, plus running turns with those labels are stopped, and new sessions and messages with them are refused until the period ends.</li>
+</ul>
+</li>
+<li>Usage from before this existed is filled in from the session logs once.</li>
+</ul>
+<h3 id="model-routing">Model routing</h3>
+<p>Routing rules (<strong>Settings → Model routing</strong>) choose the connection and model for sessions started without one: from the new-session form on <strong>Auto</strong>, <code>c6 run</code> without <code>--model</code>, and templates or automations that leave the model empty.</p>
+<ul>
+<li><strong>A rule:</strong> labels it applies to (yours, or <code>worker:</code>, <code>folder:</code>, <code>host:</code>, <code>template:</code>; a bare <code>host:</code> means any SSH host), a connection (optional), a model, an effort and, optionally, a cheaper model for subagents. A named agent's own model still wins.</li>
+<li><strong>Order:</strong> the first enabled rule that matches wins. A session started on a given connection only takes rules for that connection (or for any).</li>
+<li><strong>No match:</strong> the connection of your latest session (if you didn't pick one), its default model, else the model of your latest session on it.</li>
+<li><strong>Presets:</strong> Opus with Haiku subagents everywhere, remote hosts on a fast model at low effort, research at high effort, a template on a local model.</li>
+</ul>
+<h3 id="templates-and-fleet-runs">Templates and fleet runs</h3>
+<p>A template (<strong>Settings → Templates</strong>) is a saved way to start a session:</p>
+<ul>
+<li><strong>Where:</strong> a worker; <code>*</code> for every online worker; or a list of SSH hosts, reached through a worker.</li>
+<li><strong>How:</strong> connection, model and labels.</li>
+<li><strong>What to ask:</strong> a prompt, where <code>{{input}}</code>, <code>{{target}}</code>, <code>{{date}}</code> and <code>{{time}}</code> are filled in.</li>
+</ul>
+<p><strong>Running one:</strong> run a template from the Sessions page ("Run a template"; an app's templates are marked with its realm and run there), with <code>c6 run -t &lt;name&gt; [input]</code> (it finds the realm that has the template), or on a schedule or from a webhook (see Automations).</p>
+<p><strong>Fleet runs:</strong> a template with several targets starts one session per target, all sharing a <code>run:&lt;id&gt;</code> label. The UI opens mission control filtered to the run, and <code>c6 run -t</code> waits for them all and prints each one's last reply.</p>
+<p>Settings has examples: a health check across hosts, updating every worker, a research digest.</p>
+<h3 id="automations-schedules-and-webhooks">Automations: schedules and webhooks</h3>
+<p>An automation (<strong>Settings → Automations</strong>) starts a template:</p>
+<ul>
+<li><strong>On a schedule:</strong> cron fields in the head's local time, with presets like "weekdays at 9:00" and <code>@daily</code>. Each automation shows its next run.</li>
+<li><strong>When its webhook is called:</strong> <code>POST</code> any body to the URL you're shown once. JSON is passed to the template's <code>{{input}}</code> pretty-printed. Point CI, an alert manager or a form at it.</li>
+</ul>
+<p><strong>Webhook URLs:</strong> the URL is the webhook's only credential, so treat it like a password. <strong>New URL</strong> replaces it, and a wrong or switched-off URL answers 404.</p>
+<p><strong>Runs:</strong> each run is labelled <code>automation:&lt;name&gt;</code> and <code>run:&lt;id&gt;</code> and lands in your inbox when it finishes. Every automation shows its last run, any error, and <strong>Run now</strong>. Times missed while the head was down are skipped, not made up.</p>
+<p><strong>History and health:</strong></p>
+<ul>
+<li>A run's outcome comes from how each of its sessions' first turn ended: <strong>ok</strong>, <strong>failed</strong> (an error, a session that could not start, or a target that did not start), or <strong>stopped</strong> (interrupted).</li>
+<li>Each automation shows dots for its last ten runs. <strong>History</strong> lists runs with their trigger (schedule, webhook or manual), duration, model calls and cost, and their sessions.</li>
+<li>A failed run sends an <code>automation</code> notification.</li>
+<li><strong>Switch off after</strong> N failed runs in a row (the form suggests 3; never, if unset) turns the automation off and tells you.</li>
+</ul>
+<h3 id="workflows">Workflows</h3>
+<p>A workflow (<strong>Settings → Workflows</strong>) is a list of steps, run in order:</p>
+<ul>
+<li><strong>run:</strong> start a template (fanning out to its hosts or workers as usual). The step's output is its sessions' last replies.</li>
+<li><strong>approve:</strong> wait for your go-ahead. Answer in the panel under the editor, or from the approval notification's link; "Stop" ends the run.</li>
+<li><strong>notify:</strong> send a notification.</li>
+</ul>
+<p>Inputs, titles and messages can use <code>{{input}}</code> (the workflow's input) and <code>{{steps.&lt;id&gt;.output}}</code>. A step with <code>when</code> runs only if an earlier step's output <code>contains</code> or does <code>not_contains</code> some text, or <code>changed</code> since the last run. <code>changed</code> compares the output's last <code>RESULT:</code> line, so a check that answers in different words each time only counts as changed when its result does.</p>
+<ul>
+<li><strong>Failures:</strong> a failed run step ends the run (unless <code>continue_on_failure</code>) and sends an <code>automation</code> notification.</li>
+<li><strong>Starting one:</strong> run it from the panel, or from an automation by choosing the workflow as its template. The automation's history then follows the workflow's outcome.</li>
+<li><strong>Durability:</strong> runs are stored on the head and pick up again after a restart.</li>
+<li><strong>Presets:</strong> tell me only when a check's result changes; check, ask me, then fix; research, then write it up.</li>
+</ul>
+<h3 id="connectors-mcp-servers">Connectors (MCP servers)</h3>
+<p><strong>Settings → MCP servers</strong> has an <strong>Add a connector…</strong> menu:</p>
+<ul>
+<li><strong>GitHub:</strong> issues, PRs, code.</li>
+<li><strong>Slack:</strong> read and post messages.</li>
+<li><strong>PostgreSQL:</strong> read-only queries.</li>
+<li><strong>A headless browser:</strong> Playwright, for research and web tasks.</li>
+<li><strong>A generic remote HTTP server</strong> with a bearer token.</li>
+</ul>
+<p><strong>Secrets in configs:</strong> <code>${NAME}</code> anywhere in a server's command, arguments, environment, URL or bearer token is filled in from that secret, so tokens stay in the secret store. A server that needs a secret the session doesn't have isn't started, and the session says which secret is missing.</p>
+<p><strong>Scoping:</strong> <code>"applies_to": [labels]</code> limits a server to matching sessions, like other settings.</p>
+<h3 id="outputs-decks-reports-and-other-deliverables">Outputs: decks, reports and other deliverables</h3>
+<p>When the agent finishes a deliverable (a slide deck, a report, a chart, a document), it publishes it with the <code>publish_file</code> tool, and it appears in the session's <strong>Outputs</strong> tab:</p>
+<ul>
+<li><strong>Preview by type:</strong> HTML pages (decks included) in a sandbox, PDFs, images, Markdown and text. Anything else is offered for download.</li>
+<li><strong>Versions:</strong> every publish is kept as a version, with a picker. Open and Download are next to the preview.</li>
+<li><strong>In the transcript:</strong> a "📦 Published …" line marks each publish, with images shown inline.</li>
+<li><strong>Where content lives:</strong> each version's content is stored in the session itself (up to 20 MB), so it's still there when the worker is offline or the file has changed since.</li>
+<li><strong>Getting started:</strong> Settings → Skills has examples to start from. <strong>Slide deck</strong> builds one self-contained HTML deck that prints to PDF. <strong>Research report</strong> searches, cross-checks and writes a cited Markdown report.</li>
+</ul>
+<h3 id="web-search-with-any-model">Web search with any model</h3>
+<p>Claude and OpenAI models search the web through their own provider. For the rest (Ollama and other OpenAI-compatible servers), choose a provider under <strong>Settings → Web search</strong>, and sessions get a <code>web_search</code> tool. The options:</p>
+<ul>
+<li><strong>Brave Search API</strong> or <strong>Tavily:</strong> the API key is a secret, picked by name.</li>
+<li><strong>SearXNG:</strong> self-hosted, so it needs only its URL, with the JSON format enabled.</li>
+</ul>
+<p>To give every model the same search, tick "Offer it to every model".</p>
+<h3 id="remote-machines-over-ssh">Remote machines over SSH</h3>
+<p>For a machine you can reach by SSH but don't want to install <code>c6w</code> on, start a session there <em>through</em> a worker. In the new-session form choose <strong>SSH host, through the worker</strong> and enter <code>user@host</code> (or an alias from the worker's <code>~/.ssh/config</code>) and a folder there (default: home). On the command line: <code>c6 run --ssh admin@web1 "install and start nginx"</code>.</p>
+<ul>
+<li><strong>What runs where.</strong> The agent's shell commands, file reads and edits, grep and glob, and background commands all run on that machine.</li>
+<li><strong>Connection.</strong> The worker connects with its own SSH setup: keys, agent and <code>~/.ssh/config</code>, never passwords (BatchMode). It keeps one multiplexed connection per host.</li>
+<li><strong>What the agent is told.</strong> The session's system prompt names the machine and its OS. The agent is told it works non-interactively (<code>sudo -n</code>).</li>
+<li><strong>Secrets</strong> reach remote commands through stdin, never through a command line.</li>
+<li><strong>Session view.</strong> The session shows <code>⇄ user@host</code> and gets a <code>host:</code> label. Its <strong>Terminal</strong> tab opens an SSH shell in the session's folder there.</li>
+<li><strong>What stays on the worker.</strong> Hooks and MCP servers run on the worker. Files on the target aren't checkpointed for rewind, and @-mentions refer to the worker's files, so they're off for SSH sessions.</li>
+</ul>
+<h3 id="sessions-without-a-folder">Sessions without a folder</h3>
+<p>Not every task belongs in a repository. Leave the folder empty when starting a session (or use <code>c6 run --scratch</code>), and the worker gives it a scratch workspace of its own, <code>scratch/&lt;session&gt;</code> in the worker's state directory. It's where the agent downloads, drafts and builds things for research, documents and one-off jobs.</p>
+<h3 id="secrets">Secrets</h3>
+<p>Keep API keys, tokens and passwords under <strong>Settings → Secrets</strong>. Each one is an environment variable (<code>$GITHUB_TOKEN</code>) for the agent's shell commands, background commands included, in the sessions it applies to (an "Applies to" label list, like other settings).</p>
+<ul>
+<li><strong>The agent never sees a value.</strong> The system prompt lists only names and descriptions, and a value that appears in command output is replaced by <code>[secret:NAME]</code> before the model or the UI sees it.</li>
+<li><strong>Storage.</strong> Values are encrypted on the head and can only be replaced, never read back.</li>
+<li><strong>Delivery.</strong> Workers fetch values when a turn starts, keep them in memory for a few minutes, and never write them to their journal. A secret scoped to a <code>worker:</code> label is only handed to that worker.</li>
+</ul>
+<h3 id="background-tasks">Background tasks</h3>
+<p>The agent can start work in the background and carry on: long builds, test suites, servers (<code>bash</code> with <code>run_in_background</code>), and subagents (Task with <code>run_in_background</code>).</p>
+<ul>
+<li><strong>When a task ends, the agent is told.</strong> It gets the exit code, how long the task ran and the end of its output (for a subagent, its report). If a turn is running, the agent sees it at its next step. If the session is idle, a new turn starts so the agent can react by itself. "Start the build and tell me when it's done" works without you checking back.</li>
+<li><strong>Opting out.</strong> A task started with <code>notify: false</code> doesn't wake anyone. Use it for servers and watchers meant to keep running.</li>
+<li><strong>The running-tasks control.</strong> The session header shows <strong>⚙ N running</strong>: each task, how long it has run, and a <strong>Stop</strong> button. The agent is told when you stop one.</li>
+<li><strong>In the transcript</strong>, each ending appears as a one-line entry, with the agent's notice folded underneath.</li>
+<li><strong>Limit.</strong> Notices start at most 20 turns per hour in an idle session. Beyond that they're held until your next message, and the session says so.</li>
+<li><strong>Worker restarts.</strong> Tasks die with the worker; the agent is told they were lost, and a command left running by the old worker process is stopped.</li>
+</ul>
+<h3 id="subagents">Subagents</h3>
+<p>The agent can hand work to a subagent with the Task tool. A subagent is a session of its own, shown as a thread under the call that started it (docs/subagents.md).</p>
+<ul>
+<li><strong>Watching one.</strong> While it works, the thread shows its last few steps live. Click the thread to open its whole conversation, or ↗ to open it in its own column. The session header's <strong>◆</strong> button lists every subagent in the session, at any depth, with its state. Pick one to go to its thread.</li>
+<li><strong>Stopping one.</strong> <strong>■ Stop</strong> in its thread ends its turn without stopping the agent that started it. That agent gets a summary of what the subagent did (its last message, the files it changed, its errors). Stopping the main turn stops the subagents it waits on too.</li>
+<li><strong>Continuing one.</strong> Its conversation is kept, so it can pick up where it was:
+<ul>
+<li>after a stop, a failure or a worker restart, <strong>↻ Resume</strong> sends it the resume prompt (Settings → Prompts);</li>
+<li>you can reply to it at any time from its thread;</li>
+<li>the agent that started it can send it a message with <code>SendMessage</code>, as a follow-up or to steer one running in the background.</li>
+</ul>
+</li>
+<li><strong>Where its report goes.</strong> A report from a turn the agent waited on comes back as the call's result. For a turn you started, the report goes to the agent that started the subagent: at its next step if it's working, or with its next message if it's idle. Tick <strong>Wake the agent that started it</strong> to have it react right away.</li>
+<li><strong>Nesting.</strong> Subagents can start subagents of their own. <strong>Settings → Agents → Subagent limits</strong> sets how deep (3 by default) and how many may work at once below one session (16).</li>
+<li><strong>Asking about one.</strong> <strong>↳ Ask</strong> works in a subagent's thread too: the side chat sees its conversation and doesn't disturb it.</li>
+<li><strong>Claude Code sessions.</strong> Claude Code's own subagents show as threads too, read-only: Claude Code runs and continues them.</li>
+</ul>
+<h3 id="rewind-and-edit">Rewind and edit</h3>
+<p>Hover one of your messages: <strong>↶ Rewind</strong> takes the conversation back to before it, and <strong>✎ Edit</strong> changes it and sends it again. Either can also restore files: before each turn the worker snapshots the session's folder into a private repository in its state directory (your own git repository, if any, is never touched; folders without git work too; <code>node_modules/</code>, <code>target/</code> and the like are skipped, as are files your <code>.gitignore</code> ignores). Rewound messages stay in the transcript, folded under a marker.</p>
+<h3 id="attachments-and--mentions">Attachments and @-mentions</h3>
+<p>Paste, drop or pick (📎) images and text files into the message box; they go with the message (images as images, for models that see them; text files inline). Type <code>@</code> to mention a file or folder in the session's folder: a fuzzy finder completes the path, and the worker attaches the file (or a folder's listing) when the message arrives, so the model has it without a tool call. Files over 256 KB are mentioned but not inlined. Limits: 10 MB per upload, 20 MB per message. The Claude Code backend gets text only.</p>
+<h3 id="slash-commands">Slash commands</h3>
+<p>Type <code>/</code> in the message box for the command list.</p>
+<ul>
+<li><strong>Built in:</strong> <code>/compact [focus]</code> summarizes the conversation so far (optionally focused on something) to free context; <code>/init</code> writes an AGENTS.md describing the codebase; <code>/review [what]</code> reviews the uncommitted changes, or a branch or PR you name; <code>/clear</code> starts a fresh session in the same folder with the same model; <code>/export</code> downloads the conversation as Markdown.</li>
+<li><strong>Your own</strong>, under <strong>Settings → Slash commands</strong>: a name, a description, an arguments hint and the prompt. In the prompt, <code>$ARGUMENTS</code> and <code>$1</code>…<code>$9</code> take the arguments, <code>!`cmd`</code> the output of a shell command run in the session's folder, and <code>@path</code> attaches a file. Changes apply to the next message, and a command named like a built-in replaces it. Start from an example (fix a GitHub issue, write a commit message, explain code).</li>
+</ul>
+<h3 id="agents-and-skills">Agents and skills</h3>
+<p>Both live in Settings and are copied into each new session.</p>
+<ul>
+<li><strong>Agents</strong> (<strong>Settings → Agents</strong>) are specialized subagents the model can launch with the Task tool. Each has:
+<ul>
+<li>a name;</li>
+<li>a description, which the model reads to pick one;</li>
+<li>optionally, the tools it may use (Claude Code's names, e.g. <code>Read, Grep, Glob</code>, work with every model; all tools when empty);</li>
+<li>optionally, a model (<code>opus</code>, <code>sonnet</code>, <code>haiku</code> or a model id; honored on Anthropic connections);</li>
+<li>its instructions, which become its system prompt.</li>
+</ul>
+</li>
+<li><strong>Skills</strong> (<strong>Settings → Skills</strong>) are instructions the agent loads by name when they apply. Only the name and description sit in its prompt until then.</li>
+<li><strong>On/off.</strong> Each command, agent and skill can be switched off without deleting it.</li>
+</ul>
+<h3 id="hooks">Hooks</h3>
+<p>Hooks are shell commands that run on the worker at set points in every session. Set them up under <strong>Settings → Hooks</strong>; the head stores them and each new session takes a copy. Start from an example (refuse <code>rm -rf</code>, protect <code>.env</code> files, format after edits, tell the agent the git branch, keep going until tests pass) or write your own.</p>
+<ul>
+<li><strong>Events:</strong> <code>PreToolUse</code> and <code>PostToolUse</code> (narrowed by a tool-name regex; Claude Code's names like <code>Bash</code> and <code>Edit</code> work with every model), <code>UserPromptSubmit</code>, <code>Stop</code> and <code>SessionStart</code>. A hook can be limited to sessions in one folder, and switched off without deleting it.</li>
+<li><strong>How a command runs.</strong> It runs in the session's folder, gets the event as JSON on stdin (<code>tool_name</code>, <code>tool_input</code>, <code>prompt</code>, …), and has <code>C6_PROJECT_DIR</code> set to the repository root.</li>
+<li><strong>Exit code 2 blocks</strong>, with stderr as the reason:
+<ul>
+<li><code>PreToolUse</code>: the call is refused and the agent is told why;</li>
+<li><code>UserPromptSubmit</code>: the message is shown struck through and never sent;</li>
+<li><code>Stop</code>: the agent keeps working, with the reason as feedback;</li>
+<li><code>PostToolUse</code>: stderr is added to the tool's result.</li>
+</ul>
+</li>
+<li><strong>Exit 0.</strong> Printing <code>{"decision": "block", "reason": …}</code> also blocks. Plain output from <code>UserPromptSubmit</code> and <code>SessionStart</code> is given to the agent as context.</li>
+<li><strong>Claude Code sessions</strong> get the same hooks, passed to the <code>claude</code> CLI as settings.</li>
+</ul>
+<h3 id="workspace">Workspace</h3>
+<p>The UI is a workspace of up to four tiles side by side, each a stack of columns:</p>
+<ul>
+<li><strong>Columns:</strong> opening something (a session from the list, a search result, a side chat's parent) puts it in a column beside where you clicked, so where you came from stays open — a search stays beside the result you are reading. Earlier columns fold into spines; click one to go back to it (the columns after it fold to the right until you open something new). The header's nav swaps sections in place.</li>
+<li><strong>Sessions side by side:</strong> from a list (Sessions, Inbox, Mission, search results), the first session opens beside the list; each further one opens in a new tile at the right, up to four (then it replaces the least recently used tile). A session that is already open is shown where it is instead of opening twice.</li>
+<li><strong>Tiles:</strong> ⌘/Ctrl-click any link (or ⧉ in a column header, or <strong>+ Tile</strong>) to open it in a new tile. ⌘1–4 focus a tile; ⌘[ and ⌘] step back and forward in the focused tile.</li>
+<li><strong>Activity dock</strong> (left, on wide screens): running sessions, ones that finished or failed while not on screen (amber/red), and pinned ones (☆ in a session's header). <strong>Inbox</strong> lists the same for triage; <strong>Mission</strong> shows them as live cards you can reply from.</li>
+<li><strong>Phones:</strong> one tile at a time with a switcher, Inbox and <strong>+</strong> at the bottom; a column fills the screen, with ‹ › in its header and the nav in ☰.</li>
+<li>The workspace is saved in the browser; the address bar shows the focused column, so links and reloads land in the right place.</li>
+</ul>
+<h3 id="search">Search</h3>
+<p>The search box in the header (⌘K) searches every message, tool call, tool output, thinking block and error in all sessions, including side chats and subagents. Words and <code>"quoted phrases"</code> must all match, as substrings (3+ characters each, case-insensitive); <code>-word</code> excludes. Results are grouped by session; each match links to its place in the transcript, opened and highlighted. In a session, the find bar (it opens from a search result, or with <strong>Find</strong>) highlights every match on the page (the current one in orange) and steps through every match in the session and its side chats: Enter / ⌘G for the next, Shift+Enter / ⇧⌘G for the previous, Esc to close. The index (SQLite FTS5) is kept in the head's database, updated as events arrive, and rebuilt automatically when its format changes.</p>
+</div><p class="source">This guide is the README's; <a href="https://github.com/carbon6-dev/carbon6/blob/main/README.md">edit it on GitHub</a>.</p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#command-line-c6">Command line (c6)</a></li><li><a href="#the-assistant">The assistant</a></li><li><a href="#collections">Collections</a></li><li><a href="#environment-knowledge-and-decisions">Environment knowledge and Decisions</a></li><li><a href="#configuration">Configuration</a></li><li><a href="#upgrades">Upgrades</a></li><li><a href="#labels">Labels</a></li><li><a href="#memory">Memory</a></li><li><a href="#policies-and-approvals">Policies and approvals</a></li><li><a href="#memex">Memex</a></li><li><a href="#mail-calendar-and-contacts">Mail, calendar and contacts</a></li><li><a href="#browser">Browser</a></li><li><a href="#notifications">Notifications</a></li><li><a href="#hosts">Hosts</a></li><li><a href="#usage-and-budgets">Usage and budgets</a></li><li><a href="#model-routing">Model routing</a></li><li><a href="#templates-and-fleet-runs">Templates and fleet runs</a></li><li><a href="#automations-schedules-and-webhooks">Automations: schedules and webhooks</a></li><li><a href="#workflows">Workflows</a></li><li><a href="#connectors-mcp-servers">Connectors (MCP servers)</a></li><li><a href="#outputs-decks-reports-and-other-deliverables">Outputs: decks, reports and other deliverables</a></li><li><a href="#web-search-with-any-model">Web search with any model</a></li><li><a href="#remote-machines-over-ssh">Remote machines over SSH</a></li><li><a href="#sessions-without-a-folder">Sessions without a folder</a></li><li><a href="#secrets">Secrets</a></li><li><a href="#background-tasks">Background tasks</a></li><li><a href="#subagents">Subagents</a></li><li><a href="#rewind-and-edit">Rewind and edit</a></li><li><a href="#attachments-and--mentions">Attachments and @-mentions</a></li><li><a href="#slash-commands">Slash commands</a></li><li><a href="#agents-and-skills">Agents and skills</a></li><li><a href="#hooks">Hooks</a></li><li><a href="#workspace">Workspace</a></li><li><a href="#search">Search</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Realm explorer · carbon6</title><meta name="description" content="Everything a realm holds, and how its parts connect, one click from each other."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/explorer/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Realm explorer · carbon6"><meta property="og:description" content="Everything a realm holds, and how its parts connect, one click from each other."><meta property="og:url" content="https://carbon6.dev/docs/explorer/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/explorer/" aria-current="page">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Realm explorer — Design</h1><div><p>A page per realm that shows what the realm holds, how its parts connect, and lets you walk from any object to the objects related to it, across data and knowledge alike. It's the "file manager" of the OS (docs/os.md): read-mostly, every object one click from its neighbors, and edits handed to the pages that already own them.</p>
+<h2 id="1-goals">1. Goals</h2>
+<ul>
+<li><strong>Inventory at a glance:</strong> what a realm holds, how much, and what changed lately.</li>
+<li><strong>Navigation by relationship:</strong> a record leads to the things it links to, the sessions about it, the triggers watching its collection, and the decisions it raised. A thing in the knowledge leads to the records that mention it.</li>
+<li><strong>One place for data and knowledge:</strong> collections and series sit next to memex things, facts and items. Where they meet (record links such as <code>client:acme</code>, the memex mirror of records) is visible.</li>
+<li><strong>Information flow is visible:</strong> grants in and out, commons, and the app the realm came from.</li>
+<li><strong>No new truth:</strong> the explorer only reads existing APIs (plus one summary endpoint). Editing stays in Collections, Settings, Decisions and the rest; the explorer links there.</li>
+</ul>
+<h2 id="2-where-it-lives">2. Where it lives</h2>
+<ul>
+<li><strong><code>/realms</code>: the map.</strong> Every realm as a card (name, app, counts, last activity, spend this month), with grants drawn as arrows between them and commons beside them. "All realms" in the header lands here.</li>
+<li><strong><code>/realms/&lt;id&gt;</code>: the explorer</strong> of one realm. Picking a realm in the header switcher offers it, and the Views menu links to it ("Explore crm").</li>
+<li><strong><code>/realms/&lt;id&gt;/&lt;kind&gt;/&lt;id&gt;</code>: an object</strong> inside the explorer, so every object has an address you can bookmark, share in a tile, or give the assistant as context.</li>
+</ul>
+<h2 id="3-layout">3. Layout</h2>
+<p>Three panes, collapsing to one on phones:</p>
+<pre><code>┌──────────────┬──────────────────────────────┬────────────────────────┐
+│ Inventory    │ List / overview              │ Object                 │
+│              │                              │                        │
+│ Overview     │ (what the left pane picked:  │ (what the middle pane  │
+│ Data         │  a table, a timeline,        │  picked: its fields,   │
+│  collections │  a graph)                    │  and "Connected" —     │
+│  series      │                              │  every related object, │
+│ Knowledge    │                              │  grouped by kind)      │
+│  things      │                              │                        │
+│  facts       │                              │                        │
+│  items       │                              │                        │
+│ Work         │                              │                        │
+│  sessions    │                              │                        │
+│  decisions   │                              │                        │
+│  triggers    │                              │                        │
+│ Config       │                              │                        │
+│  views…      │                              │                        │
+│ Flow         │                              │                        │
+│  grants      │                              │                        │
+└──────────────┴──────────────────────────────┴────────────────────────┘
+</code></pre>
+<p>A filter box over the middle pane searches within what's shown, and a realm-wide search (records, knowledge, sessions) sits at the top.</p>
+<h2 id="4-the-inventory-left-pane">4. The inventory (left pane)</h2>
+<p>Each entry shows a count, and a dot when something changed in the last day.</p>
+<table><thead><tr><th>Group</th><th>Entries</th><th>Source</th></tr></thead><tbody>
+<tr><td>Overview</td><td>(the realm's dashboard, 5)</td><td>summary endpoint</td></tr>
+<tr><td>Data</td><td>each collection (record count); each series (points, last value)</td><td>collections, series</td></tr>
+<tr><td>Knowledge</td><td>things by kind (people, organizations, systems, topics); facts by status; items by kind (email, document, note, session…); trails</td><td>memex graph, knowledge.list, memex.months</td></tr>
+<tr><td>Work</td><td>sessions (running / waiting / done), decisions (open / answered), triggers (with failing ones flagged), workflow runs</td><td>sessions, decisions, triggers</td></tr>
+<tr><td>Config</td><td>views, templates, skills, agents, commands, hooks, MCP servers, policies, budgets, prompts overridden, memory notes, secrets (names only)</td><td>settings lists (<code>?realm=</code>), with "inherited from root" shown separately</td></tr>
+<tr><td>Flow</td><td>grants in, grants out, commons (published by this realm, read from it), the app and its version</td><td>grants, apps</td></tr>
+<tr><td>Infrastructure</td><td>workers and connections that serve this realm</td><td>workers, connections</td></tr>
+</tbody></table>
+<h2 id="5-the-overview">5. The overview</h2>
+<p>The landing view of <code>/realms/&lt;id&gt;</code>:</p>
+<ul>
+<li><strong>Header:</strong> name, description, the app (version, "upgrade available" when a newer package was loaded), reads-commons switch.</li>
+<li><strong>Activity:</strong> the last day's events across the realm, in one timeline (records created or changed, decisions opened or answered, sessions finished, trigger runs, points recorded, knowledge added).</li>
+<li><strong>Health:</strong> failing triggers, decisions waiting, sessions waiting for approval, thresholds crossed, budget use.</li>
+<li><strong>Shape:</strong> the collections and series as tiles, sized by count, with their schemas a click away; the realm's top things (most linked).</li>
+<li><strong>Flow:</strong> a small map of this realm's grants and commons.</li>
+</ul>
+<h2 id="6-objects-and-connected">6. Objects and "Connected"</h2>
+<p>Every object in the right pane shows its own content, then <strong>Connected</strong>: every related object, grouped by kind, each a link that opens it in the same pane (with back and forward). This is what makes it an explorer rather than a set of lists.</p>
+<table><thead><tr><th>Object</th><th>Shows</th><th>Connected</th></tr></thead><tbody>
+<tr><td>Collection</td><td>description, schema (as a field table), keys, counts per enum field</td><td>its records; views using it; triggers on it; grants on it; series with the same dimension names</td></tr>
+<tr><td>Record</td><td>fields, links, labels, history (diffable versions)</td><td>things it links to (<code>client:acme</code>), records linking to it, sessions labelled <code>record:&lt;id&gt;</code>, decisions whose context names it, trigger runs it caused, its memex mirror item</td></tr>
+<tr><td>Series</td><td>unit, dimensions, retention, a chart (zoomable window, group by dimension)</td><td>triggers with thresholds on it, triggers recording into it, views charting it</td></tr>
+<tr><td>Thing (person, org, system…)</td><td>its summary, facts about it (with status and evidence), timeline</td><td>items mentioning it, related things (from the graph), records linking to it, sessions about it (by label)</td></tr>
+<tr><td>Fact</td><td>claim, status, evidence, where it applies</td><td>its things, the session that recorded it, the decision that settled a dispute</td></tr>
+<tr><td>Item (mail, document, note, session digest)</td><td>its text or summary, source</td><td>things it mentions, the record it mirrors (for records), the session it came from</td></tr>
+<tr><td>Session</td><td>title, status, labels, cost</td><td>records it wrote (<code>created_by session:&lt;id&gt;</code>), decisions it raised, items and facts it produced, the trigger run that started it</td></tr>
+<tr><td>Decision</td><td>document, options, answer</td><td>what it's about (record, grant, app, session), the trigger or session that opened it, what answering it started</td></tr>
+<tr><td>Trigger</td><td>event, filter, action, recent runs (with their cause chain)</td><td>the collection, series or template it involves; triggers that cause it and that it causes (from run causes)</td></tr>
+<tr><td>Grant</td><td>from, to, kind, scope, mode, uses</td><td>the collection or knowledge it opens; its use log</td></tr>
+<tr><td>View</td><td>its definition, a live preview</td><td>the collection or series it shows</td></tr>
+</tbody></table>
+<h2 id="7-graph-mode">7. Graph mode</h2>
+<p>A toggle on the middle pane draws the current neighborhood as a graph: the selected object in the middle, its Connected objects around it, colored by kind. Clicking a node recenters on it. Two built-in graphs:</p>
+<ul>
+<li><strong>Realm wiring:</strong> collections, series, triggers, templates and views, with edges for "watches", "writes", "starts", "shows". It answers "what happens when a record changes here?" (the trigger chain, as config).</li>
+<li><strong>Knowledge neighborhood:</strong> a thing and its related things, plus the records linked to each (memex graph plus record links).</li>
+</ul>
+<p>Graphs are bounded (two hops, 60 nodes) and fall back to the lists.</p>
+<h2 id="8-what-the-head-adds">8. What the head adds</h2>
+<p>The UI uses existing endpoints, except:</p>
+<ul>
+<li><strong><code>GET /api/v1/realms/{id}/summary</code>:</strong> counts per inventory entry, last-change times, health flags, spend this month, in one call (the left pane and overview would otherwise make ~20 requests).</li>
+<li><strong><code>GET /api/v1/realms/{id}/connected?kind=&amp;id=</code>:</strong> the Connected groups for one object, computed in the head where the joins are cheap (record links, <code>record:</code> labels, <code>created_by</code>, decision contexts and refs, trigger runs' causes, grant scopes). Knowledge links come from the memex (<code>memex.related</code>, <code>memex.mentions</code>) for the realm, through its grants.</li>
+<li><strong><code>GET /api/v1/realms/{id}/activity?since=</code>:</strong> the merged timeline (record history, decisions, session ends, trigger runs, points, new knowledge).</li>
+</ul>
+<p>All three answer realm-scoped tokens for their own realm (admitted like collections), so the assistant in a realm can use them too, and add operations to the catalog.</p>
+<h2 id="9-build-order">9. Build order</h2>
+<ol>
+<li>Summary and activity endpoints; <code>/realms</code> map with cards; <code>/realms/&lt;id&gt;</code> with the inventory and overview.</li>
+<li>Lists and object panes for data (collections, records, series) and work (sessions, decisions, triggers), with the Connected endpoint for them.</li>
+<li>Knowledge (things, facts, items) and its links to records.</li>
+<li>Graph mode (wiring, then knowledge neighborhood).</li>
+<li>Flow (grants, commons, apps) and the map's arrows.</li>
+</ol>
+<h2 id="10-decisions">10. Decisions</h2>
+<ul>
+<li><strong>Root</strong> gets the map, plus an explorer of its configuration and infrastructure (it holds no data).</li>
+<li><strong>Home's mail, calendar events and photos</strong> are counted among its knowledge, and those lines link to the Mail, Calendar and Photos pages.</li>
+<li><strong>Read-only:</strong> every object has "Open ↗" to the page that edits it.</li>
+</ul>
+<h2 id="11-as-built">11. As built</h2>
+<ul>
+<li><strong>Head:</strong>
+<ul>
+<li><strong><code>explorer.rs</code>:</strong> <code>summary</code>, <code>activity</code>, <code>list</code>, <code>object</code> and <code>map</code>, at <code>/api/v1/realms/{id}/summary|activity|list|object</code> and <code>/api/v1/explorer/map</code>. A realm's token reaches its own realm's.</li>
+<li><strong>The memex</strong> answers <code>memex.explore.inventory</code> (counts by kind, latest items), <code>memex.explore.list</code> (things, items or facts by kind) and <code>memex.explore.thing</code> (a thing's items, facts and related things), per realm.</li>
+</ul>
+</li>
+<li><strong>Connected, as computed:</strong>
+<ul>
+<li><strong>record:</strong> links read as thing keys (<code>client:acme</code>), records linking back, sessions labelled <code>record:&lt;id&gt;</code>, decisions whose context, reference or source names it, who wrote it (session or trigger), and the triggers on its collection.</li>
+<li><strong>thing:</strong> facts, items, related things, records linking to its key, and sessions labelled with it.</li>
+<li><strong>session:</strong> records it wrote (from history), decisions it raised, the trigger that started it, and the record it is about.</li>
+<li><strong>trigger:</strong> what it involves, triggers that cause it and that it causes (from runs' causes), and its runs' sessions.</li>
+<li><strong>decision:</strong> what it is about, what opened it, and the triggers listening.</li>
+<li>The other kinds as in §6.</li>
+</ul>
+</li>
+<li><strong>UI</strong> (<code>explorer.rs</code>):
+<ul>
+<li><strong>The pages:</strong> <code>/realms</code> (the map with grants as arrows), <code>/realms/&lt;id&gt;</code> (inventory and overview), <code>/realms/&lt;id&gt;/in/&lt;section&gt;</code>, and <code>/realms/&lt;id&gt;/&lt;kind&gt;/&lt;id&gt;</code>.</li>
+<li><strong>Navigation:</strong> links move the column in place (⌘-click opens a tile). Exploring a realm switches the header to it.</li>
+<li><strong>Graphs:</strong> the overview's "How it is wired" draws sources, triggers and targets in three columns. An object's "as a graph" draws its connections in a ring; clicking one opens it.</li>
+<li><strong>Where to find it:</strong> a Realms link in the header (and ☰), and "Explore" on each realm in Settings → System → Realms.</li>
+</ul>
+</li>
+<li><strong>Fixed on the way:</strong>
+<ul>
+<li>The realm signal now lives as long as the page. It used to be owned by whichever component asked for it first, and the explorer could dispose it.</li>
+<li>Triggers and decisions can be created with <code>?realm=</code>; before, a root caller could only create them in home. The Triggers form now lists and creates in the realm picked in the header.</li>
+</ul>
+</li>
+<li><strong>Search</strong> (<code>/api/v1/realms/{id}/search?q=</code>, and the box above the inventory):
+<ul>
+<li><strong>What it searches:</strong> the realm's records (their text), things, knowledge (the memex's search), facts, sessions (by title and by what was said in them, through the session index), decisions (title and document), triggers, series, and settings entries.</li>
+<li><strong>Results</strong> are grouped by kind in the middle pane, at <code>/realms/&lt;id&gt;/in/search:&lt;q&gt;</code>, and each opens as any object does.</li>
+</ul>
+</li>
+<li><strong>Two-hop graphs</strong> (<code>/api/v1/realms/{id}/neighborhood?kind=&amp;id=</code>): the object, up to 14 objects connected to it, and up to 4 more from each of those (60 at most). Each object appears once, and links among them are kept.
+<ul>
+<li><strong>Drawing:</strong> two rings, with the second fanned out around its parent. Clicking a node opens it in the same column.</li>
+</ul>
+</li>
+<li><strong>Not built:</strong> "upgrade available" for apps (a package isn't kept anywhere to compare against until it's loaded).</li>
+</ul>
+<h2 id="12-open-questions">12. Open questions</h2>
+<ul>
+<li>Should commons show, for each realm, what it published there?</li>
+</ul>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/explorer.md">docs/explorer.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-goals">1. Goals</a></li><li><a href="#2-where-it-lives">2. Where it lives</a></li><li><a href="#3-layout">3. Layout</a></li><li><a href="#4-the-inventory-left-pane">4. The inventory (left pane)</a></li><li><a href="#5-the-overview">5. The overview</a></li><li><a href="#6-objects-and-connected">6. Objects and "Connected"</a></li><li><a href="#7-graph-mode">7. Graph mode</a></li><li><a href="#8-what-the-head-adds">8. What the head adds</a></li><li><a href="#9-build-order">9. Build order</a></li><li><a href="#10-decisions">10. Decisions</a></li><li><a href="#11-as-built">11. As built</a></li><li><a href="#12-open-questions">12. Open questions</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

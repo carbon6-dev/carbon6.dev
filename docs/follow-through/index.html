@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Follow-through · carbon6</title><meta name="description" content="Sessions that see their work through after the push. Built, then mostly removed."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/follow-through/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Follow-through · carbon6"><meta property="og:description" content="Sessions that see their work through after the push. Built, then mostly removed."><meta property="og:url" content="https://carbon6.dev/docs/follow-through/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/" aria-current="page">Follow-through</a></li></ul></nav><article class="prose"><h1>Follow-through and environment knowledge — Design</h1><div><blockquote>
+<p><strong>Status (2026-10-13):</strong> follow-through (§2–4: reactions, next steps, trackers, kits), self-configuration (§5) and playbooks were built and then <strong>removed</strong>: they did not land well. <strong>Environment knowledge (§6) and action items (§7) are built</strong> and stay. The rest of this document is the design as it was, kept for a later attempt.</p>
+</blockquote>
+<p>A coding session doesn't end at <code>git push</code>. The push creates things outside carbon6: a branch, a pull request, a CI run, and later perhaps a deployment. Each has its own lifecycle. A session should <strong>follow through</strong>:</p>
+<ul>
+<li>offer the obvious next step (open a PR);</li>
+<li>keep track of what happens next (the CI run);</li>
+<li>do so in the conversation, while the work goes on.</li>
+</ul>
+<p>None of this is built into carbon6. Which CI a project uses, where it runs, how to reach it and how to read it is <strong>per project</strong>. Agents discover it themselves, configure carbon6 for it, and curate what they learn as <strong>environment knowledge</strong> that every later session starts with.</p>
+<p>The first real case: GitHub, plus in-house CI. The CI runs in our own cloud, polls GitHub, starts Argo workflows, and is reachable only over WireGuard.</p>
+<h2 id="1-decisions">1. Decisions</h2>
+<table><thead><tr><th>Question</th><th>Decision</th></tr></thead><tbody>
+<tr><td>What is built in?</td><td>Mechanisms only: reactions, next steps, trackers, kits, knowledge, action items. No CI system, forge or cloud is known to carbon6.</td></tr>
+<tr><td>Who configures a project?</td><td>The agent: it discovers, writes the kit, dry-runs it, and records what it learned. You review when you choose.</td></tr>
+<tr><td>Does the agent stop to ask?</td><td>No. Questions, doubts and things to confirm become <strong>action items</strong> in a list you work through when you want. The agent carries on with what it has.</td></tr>
+<tr><td>Who sees environment knowledge?</td><td>Every session. Each fact says how it is known (§6.2) and where it applies (§6.3), so agents can tell what to rely on.</td></tr>
+<tr><td>What gets written down?</td><td>Everything an agent figures out, labeled with how it knows it.</td></tr>
+<tr><td>How long is a fact trusted?</td><td>By its volatility (§6.4): structural facts until contradicted; slow-changing ones re-checked after a while; volatile states are not facts at all. Every fact can be re-checked when it is used.</td></tr>
+</tbody></table>
+<h2 id="2-reactions-and-next-steps">2. Reactions and next steps</h2>
+<p>A <strong>reaction</strong> is a rule scoped by labels, usually <code>repo:…</code>:</p>
+<ul>
+<li><strong>When</strong> a session does something. The trigger is a tool call (tool name, input pattern, success, output pattern) or a session event (turn ended, commit made).</li>
+<li><strong>Check:</strong> optionally run something, a command or an MCP tool, on a chosen node (§4), whose output becomes facts for the rest of the rule.</li>
+<li><strong>Then</strong> do one or more of:
+<ul>
+<li>suggest a next step;</li>
+<li>start a tracker;</li>
+<li>notify you;</li>
+<li>tell the agent something (a line added to its context);</li>
+<li>add an action item.</li>
+</ul>
+</li>
+</ul>
+<p>Templates use what the trigger and the check produced: <code>{{branch}}</code>, <code>{{sha}}</code>, <code>{{check.number}}</code>.</p>
+<p>A <strong>next step</strong> is a suggestion shown under the turn as a button ("Create a PR for <code>feature-x</code>"). Clicking it sends it as your message. The agent sees open suggestions, so "yes, do that" works. Reactions make them, and the agent can propose them too (a <code>suggest</code> tool).</p>
+<h2 id="3-trackers">3. Trackers</h2>
+<p>A <strong>tracker</strong> follows one external thing for a while: a CI run, a deployment, a PR's reviews. It belongs to the session, anchored at the event that started it (the push), and appears there as a <strong>live thread</strong>: a side chat that updates in place while the main conversation continues.</p>
+<p>Its definition is:</p>
+<ul>
+<li><strong>Where:</strong> the session's worker; a worker with given labels (for example <code>net:ci</code>, for one inside WireGuard); or the head.</li>
+<li><strong>Probe:</strong> a command, an MCP tool or an HTTP request whose output gives the state; or incoming webhooks matched by repo, branch and commit.</li>
+<li><strong>Phases:</strong> from the probe's output.
+<ul>
+<li><code>waiting</code>: the thing does not exist yet, as when CI has not picked up the push, with a time limit;</li>
+<li><code>running</code>: with progress;</li>
+<li>a final outcome: <code>succeeded</code>, <code>failed</code> or <code>cancelled</code>.</li>
+</ul>
+</li>
+<li><strong>Display:</strong> one line ("CI: running · build ✓ · test 4/9") and a link.</li>
+<li><strong>Interval</strong> and <strong>give-up time</strong>.</li>
+<li><strong>On the end:</strong> notify; suggest a next step; for a failure, open an <strong>investigation</strong> in the tracker's thread. The investigating agent:
+<ul>
+<li>reads the logs (with the probe's means) and explains the cause;</li>
+<li><strong>proposes a fix</strong>: it makes the change on a new branch off the failing commit (<code>fix/&lt;branch&gt;-&lt;sha&gt;</code>), commits it there, and shows the diff;</li>
+<li>does not push. It offers next steps to push the fix branch (and open a PR), or to apply the change to your branch.</li>
+</ul>
+</li>
+</ul>
+<p>The main agent can read every tracker's state ("CI for <code>abc123</code> failed in <code>test</code>"). Tracker updates are not added to the main conversation's context unless the agent asks for them or the tracker ends.</p>
+<p><strong>Every observation a tracker makes is kept, like sessions</strong>: each change of phase or progress, with its time and the probe's output. A tracker's thread can be read back in full at any time, and its history is what "this step often fails" patterns are learned from (§6.4).</p>
+<h2 id="4-project-kits">4. Project kits</h2>
+<p>A <strong>kit</strong> is everything that makes a project work in carbon6, grouped under its labels:</p>
+<ul>
+<li>reactions and trackers;</li>
+<li>and the existing settings that apply to those labels: skills, MCP servers, hooks, secrets (by name), policies and routes.</li>
+</ul>
+<p>Settings gets a project view: for a label, everything that applies to it, in one place. A kit can be copied to start another project.</p>
+<p>Each kit has a <strong>state</strong>:</p>
+<ul>
+<li><code>proposed</code>: written, not yet proven;</li>
+<li><code>active</code>: proven by a dry run;</li>
+<li><code>broken</code>: a check or probe fails;</li>
+<li><code>disabled</code>.</li>
+</ul>
+<p><strong>Activation:</strong></p>
+<ul>
+<li>A kit whose actions only read, suggest and notify (the usual case: checks, probes, suggestions, investigations) becomes active as soon as its dry run passes, with an action item for you to review it when you like.</li>
+<li>A kit that would change things on its own (push, comment on a PR, deploy, or change secrets or policies) waits for your approval.</li>
+</ul>
+<h2 id="5-self-configuration">5. Self-configuration</h2>
+<p><strong>Worker sessions get the operation tools</strong> (<code>c6_discover</code>, <code>c6_describe</code>, <code>c6_call</code>; see docs/assistant.md), so the agent that has the repo, <code>gh</code> and the network can configure carbon6:</p>
+<ul>
+<li>Reads are free.</li>
+<li>Writes follow the kit rules above: anything that would run commands on its own is proposed and dry-run.</li>
+<li>Policies and secrets change only with your approval.</li>
+<li>A session can never widen its own permissions.</li>
+</ul>
+<p><strong>The setup playbook</strong> is a built-in, generic procedure (a skill), not knowledge of particular systems:</p>
+<ol>
+<li><strong>Read what's known:</strong> the memex's environment knowledge for this repo and the systems it touches. On a second repo using the same CI, setup only verifies and adapts.</li>
+<li><strong>The repo:</strong> CI, deploy and infrastructure files (workflow templates, Kubernetes and Helm, Makefiles, docs), for what runs, where, and how a run is tied to a commit.</li>
+<li><strong>The forge:</strong> commit statuses and checks on a recent commit (which name the CI and link to it), required checks, webhooks.</li>
+<li><strong>The network:</strong> which workers can reach the CI's address, with which CLIs and credentials.</li>
+<li><strong>carbon6:</strong> existing secrets, hosts, worker labels and kits.</li>
+<li><strong>Write:</strong> the kit; facts (§6) for everything learned, with evidence; action items for what it could not settle (a missing credential, an ambiguity).</li>
+<li><strong>Dry-run</strong> on a recent commit, then activate (§4) or mark the kit broken with an action item.</li>
+</ol>
+<p><strong>When it runs:</strong></p>
+<ul>
+<li>Automatically, once per repo, in a side chat of the first session in a repo with no kit.</li>
+<li>When you ask ("set up follow-through for this repo").</li>
+<li>When a kit breaks (self-repair). A tracker that cannot find its run, or a credential that is rejected, starts a repair. The repair compares the facts with what it now sees, updates both, and adds an action item saying what changed.</li>
+</ul>
+<h2 id="6-environment-knowledge">6. Environment knowledge</h2>
+<h3 id="61-what-is-kept">6.1 What is kept</h3>
+<p>All of it lives in the memex.</p>
+<ul>
+<li><strong>Systems</strong> are things:
+<ul>
+<li><code>ci:argo@internal</code>, <code>cluster:build</code>, <code>network:wireguard</code>, <code>worker:build-1</code>, <code>repo:github.com/you/app</code>;</li>
+<li>kinds include <code>system</code>, <code>service</code>, <code>cluster</code>, <code>network</code>, <code>host</code>, <code>worker</code>, <code>repo</code>.</li>
+</ul>
+</li>
+<li><strong>Relationships</strong> are links:
+<ul>
+<li><code>repo</code> <em>built by</em> <code>ci</code>;</li>
+<li><code>ci</code> <em>runs in</em> <code>cluster</code>;</li>
+<li><code>cluster</code> <em>reachable from</em> <code>worker</code> <em>over</em> <code>network</code>;</li>
+<li><code>ci</code> <em>reports to</em> <code>github</code>.</li>
+</ul>
+</li>
+<li><strong>Facts</strong> are claims about a system, with their evidence, status, scope and volatility (below). For example: "workflows carry the commit as label <code>git-sha</code>".</li>
+<li><strong>Procedures</strong> are short how-tos linked to a system ("get a failed step's logs", "re-run CI"), kept as notes or trails.</li>
+<li><strong>System pages</strong> are a living summary per system, written by the memex's understanding model from its facts, and editable by you.</li>
+</ul>
+<p>Never values of secrets: only the name of the carbon6 secret that holds one.</p>
+<h3 id="62-how-a-fact-is-known-its-status">6.2 How a fact is known (its status)</h3>
+<p>Every fact carries one:</p>
+<table><thead><tr><th>Status</th><th>Meaning</th><th>Rely on it?</th></tr></thead><tbody>
+<tr><td><code>reviewed</code></td><td>You confirmed it</td><td>Yes</td></tr>
+<tr><td><code>verified</code></td><td>Re-checked by its recorded check, with evidence (command, output excerpt, when, where)</td><td>Yes, within its volatility</td></tr>
+<tr><td><code>observed</code></td><td>Seen once by a session, with evidence; not re-checked</td><td>As a strong hint; re-check before acting on it</td></tr>
+<tr><td><code>inferred</code></td><td>Concluded from documents or other facts, which it links to</td><td>As a hypothesis; verify first</td></tr>
+<tr><td><code>disputed</code></td><td>A newer observation contradicts it</td><td>No; an action item is open</td></tr>
+<tr><td><code>retired</code></td><td>No longer true (kept, with when it stopped being true)</td><td>No</td></tr>
+</tbody></table>
+<p>Agents write everything they learn: as <code>observed</code> when they saw it, as <code>inferred</code> when they concluded it. A fact moves up when a check confirms it or you review it, and down when something contradicts it.</p>
+<h3 id="63-where-a-fact-applies-its-scope">6.3 Where a fact applies (its scope)</h3>
+<p>A fact is about one or more systems, and may have <strong>conditions</strong>:</p>
+<ul>
+<li>labels (<code>repo:…</code>, <code>env:prod</code>);</li>
+<li>a branch;</li>
+<li>a namespace;</li>
+<li>a time ("since 2026-09");</li>
+<li>free text ("for release builds").</li>
+</ul>
+<p>Agents also record <strong>negative facts</strong>, such as "the Argo label convention does not apply to <code>repo:…/legacy</code>, which builds with Make", so a wrong generalization is not repeated.</p>
+<p>Briefs and searches show each fact with its status, age and scope. Agents are told, in their instructions, to treat facts as evidence with a status, not as truth, and to record contradictions instead of silently working around them.</p>
+<h3 id="64-how-long-a-fact-is-trusted-its-volatility">6.4 How long a fact is trusted (its volatility)</h3>
+<p>The agent that records a fact assigns its volatility; curation can adjust it.</p>
+<ul>
+<li><strong><code>stable</code>:</strong> structural facts that change only when someone redesigns something, such as which CI system a repo uses or how runs are labeled. They are trusted until contradicted, and re-checked opportunistically when they are used.</li>
+<li><strong><code>slow</code>:</strong> addresses, versions, credential names, which worker reaches what. They become due for a re-check after 30 days.</li>
+<li><strong><code>volatile</code>:</strong> current states, such as "CI is failing" or "the cluster is degraded". These are not facts: trackers and sessions keep them as observations (forever, like sessions), and only their patterns become facts ("the <code>e2e</code> step often fails on Mondays").</li>
+</ul>
+<p>Any fact with a <strong>check</strong> (the command that proves it) is re-checked by the next session that relies on it once it is due, and that session records the result. A fact without a check stays at its status, and ages visibly in briefs.</p>
+<h3 id="65-curation">6.5 Curation</h3>
+<ul>
+<li><strong>New facts replace old ones.</strong> A new observation about the same thing ends the old fact's validity (<code>valid_to</code>, which links already have) instead of standing beside it.</li>
+<li><strong>Contradictions become <code>disputed</code>,</strong> with an action item; nothing is overwritten silently.</li>
+<li><strong>System pages</strong> are rewritten from current facts when they change.</li>
+<li><strong>Duplicates</strong> (the same claim found by two sessions) are merged, keeping both pieces of evidence.</li>
+</ul>
+<h3 id="66-use">6.6 Use</h3>
+<ul>
+<li><strong>Session briefs</strong> include the repo's environment knowledge: the systems around <code>repo:…</code> in the graph, their pages, key procedures, and facts with their status and age.</li>
+<li><strong>The setup playbook and self-repair</strong> start from it.</li>
+<li><strong>Any session can search or ask</strong> about it ("how do I get CI logs for app?"), as can the assistant.</li>
+</ul>
+<h2 id="7-action-items">7. Action items</h2>
+<p>A list of things for you to settle, when you want to, with their context. It's carbon6's to-do list, not only knowledge's.</p>
+<p><strong>Kinds of item:</strong></p>
+<ul>
+<li>confirm a fact (<code>observed</code> or <code>inferred</code> ones that matter);</li>
+<li>resolve a dispute;</li>
+<li>review a kit (activated, or waiting for approval);</li>
+<li>provide something (a credential);</li>
+<li>answer a question an agent could not settle;</li>
+<li>follow up on something (an agent's "you may want to…").</li>
+</ul>
+<p><strong>What each item carries:</strong></p>
+<ul>
+<li>its context: links to the facts, systems, sessions and events behind it, and the evidence;</li>
+<li>who made it and when;</li>
+<li>a priority.</li>
+</ul>
+<p>Items stay listed until you settle them: on an Action items page, as an inbox section, and in a count in the header. Similar items are grouped, so one dispute doesn't become five.</p>
+<p><strong>To settle an item:</strong></p>
+<ul>
+<li><strong>Answer inline</strong> for simple ones: confirm, correct, retire, "doesn't apply here", provide.</li>
+<li><strong>Or start a session from it:</strong> carbon6 starts a session, on the right worker for the systems involved or with the assistant, with the item's context loaded and the job of helping you settle it. The outcome is recorded on the item and on the facts.</li>
+<li><strong>Snooze or dismiss</strong> it.</li>
+</ul>
+<p>Agents never wait on action items. They work with what they know, with its status, and the item records what they assumed.</p>
+<h2 id="8-build-order">8. Build order</h2>
+<ol>
+<li><strong>Mechanism:</strong>
+<ul>
+<li>reactions (tool and input matching, checks on a chosen node);</li>
+<li>next steps;</li>
+<li>trackers (polling, the <code>where</code>, phases, live threads, investigations on failure);</li>
+<li>kits with state and dry runs;</li>
+<li>the project view in Settings.</li>
+</ul>
+</li>
+<li><strong>Knowledge and action items:</strong>
+<ul>
+<li>facts with status, scope, volatility and evidence;</li>
+<li>a memex tool to record facts;</li>
+<li>curation (replacing, disputes, system pages, re-checks when used);</li>
+<li>knowledge in briefs;</li>
+<li>the action items list, with sessions started from items.</li>
+</ul>
+</li>
+<li><strong>Self-configuration:</strong>
+<ul>
+<li>operation tools in worker sessions, with the write rules;</li>
+<li>the setup playbook (automatic once per repo);</li>
+<li>self-repair.</li>
+</ul>
+</li>
+<li><strong>Push:</strong> webhook-fed trackers, when CI can reach carbon6.</li>
+</ol>
+<h2 id="9-as-built">9. As built</h2>
+<p>Only environment knowledge and action items remain.</p>
+<ul>
+<li><strong>Knowledge:</strong>
+<ul>
+<li>Facts are the memex's <code>facts</code> table. Each is mirrored as a searchable <code>fact</code> item linked to its systems; <code>fact</code> is in every session's scope.</li>
+<li>Sessions use <code>knowledge_record</code>, <code>knowledge_verify</code>, <code>knowledge_list</code> and <code>knowledge_set</code>. Observed facts need evidence. The same claim (normalized) about the same systems adds evidence instead of a duplicate. <code>contradicts</code> disputes a fact and raises an action item; <code>replaces</code> retires one.</li>
+<li>Briefs include an "Environment knowledge" section: facts about the session's things and the systems they mention, ranked by status. Facts for other labels come last and are marked.</li>
+<li>System pages are written from facts by the understanding model, within its budget.</li>
+</ul>
+</li>
+<li><strong>Action items:</strong>
+<ul>
+<li>Stored in the head's <code>todos</code> table: <code>GET</code>/<code>POST /api/v1/todos</code>, <code>PATCH /api/v1/todos/{id}</code>, and <code>POST /api/v1/todos/{id}/session</code>, which starts a session with the item's context on the worker it names.</li>
+<li>Sources: sessions (<code>todo_add</code> and <code>todo_resolve</code>) and the memex (disputes).</li>
+<li>The UI has the To do page (with a count in the header), and facts with Confirm, Correct and "No longer true" on items and on system pages.</li>
+</ul>
+</li>
+<li><strong>Removed:</strong>
+<ul>
+<li>kits, reactions, next steps, trackers, investigations, dry runs;</li>
+<li>the worker's <code>cmd.run</code>, and <code>UserInput.context</code>;</li>
+<li>sessions' <code>c6_discover</code>/<code>c6_describe</code>/<code>c6_call</code>, the setup and repair side chats, and playbooks.</li>
+<li>Their head tables and settings are dropped by migration <code>0027</code>.</li>
+</ul>
+</li>
+</ul>
+<h2 id="10-settled-since">10. Settled since</h2>
+<ul>
+<li>Investigations propose fixes, on a branch of their own, without pushing (§3).</li>
+<li>Tracker observations are kept forever, like sessions (§3).</li>
+<li>Kits that only read, suggest and notify switch on by themselves after a dry run (§4); setup runs once per repo automatically (§5).</li>
+</ul>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/follow-through.md">docs/follow-through.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-decisions">1. Decisions</a></li><li><a href="#2-reactions-and-next-steps">2. Reactions and next steps</a></li><li><a href="#3-trackers">3. Trackers</a></li><li><a href="#4-project-kits">4. Project kits</a></li><li><a href="#5-self-configuration">5. Self-configuration</a></li><li><a href="#6-environment-knowledge">6. Environment knowledge</a></li><li><a href="#7-action-items">7. Action items</a></li><li><a href="#8-build-order">8. Build order</a></li><li><a href="#9-as-built">9. As built</a></li><li><a href="#10-settled-since">10. Settled since</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

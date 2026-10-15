@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Architecture · carbon6</title><meta name="description" content="The head, workers and memex, the protocol between them, and where every piece of state lives."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/architecture/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Architecture · carbon6"><meta property="og:description" content="The head, workers and memex, the protocol between them, and where every piece of state lives."><meta property="og:url" content="https://carbon6.dev/docs/architecture/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/" aria-current="page">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Carbon6 — Architecture</h1><div><p>Status: draft v0.1 (2026-10-09). Implements <a href="/docs/requirements/">requirements.md</a> v0.2.</p>
+<h2 id="1-system-overview">1. System overview</h2>
+<pre><code>                     private network / tailnet
+ ┌──────────── browser ────────────┐
+ │  Leptos CSR app (wasm)          │
+ │  xterm.js · CodeMirror          │
+ └──────────────┬──────────────────┘
+                │ HTTP/JSON  +  WebSocket            (UI port, plain HTTP, private bind)
+ ┌──────────────▼──────────────────────────────────────────────────────┐
+ │ c6h                                                                 │
+ │  axum API ─ SessionService ─ EventStore(SQLite) ─ BlobStore         │
+ │  ConfigService ─ CredentialBroker(OAuth refresh) ─ WorkerRegistry   │
+ │  RpcRouter(head→worker req/resp) ─ OTLP exporter                    │
+ │  tonic WorkerHub                                                    │
+ └──────────────▲──────────────────────────────────────────────────────┘
+                │ gRPC / HTTP/2 / mTLS  (worker port; worker always dials)
+       ┌────────┴─────────┬─────────────────────┐
+ ┌─────┴──────┐     ┌─────┴──────┐        ┌─────┴──────┐
+ │ c6w (mac)  │     │ c6w (linux)│  ...   │ c6w        │
+ │ sessions   │     │            │        │            │
+ │ journal    │     │            │        │            │──► LLM providers
+ │ fs/git/pty │     │            │        │            │    (direct, head creds)
+ └────────────┘     └────────────┘        └────────────┘
+</code></pre>
+<ul>
+<li>The head (c6h) is the system of record. It serves two ports: a UI/API port and a worker port. Both bind only to private interfaces.</li>
+<li>Workers (c6w) dial the head and keep one long-lived HTTP/2 connection open. Every head→worker request travels back over a stream the worker opened, because the head never dials a worker.</li>
+<li>Workers call LLM providers directly, using short-lived credentials issued by the head.</li>
+</ul>
+<h2 id="2-cargo-workspace">2. Cargo workspace</h2>
+<pre><code>carbon6/
+  proto/                  *.proto (source of truth for the wire protocol)
+  crates/
+    c6-proto/             prost/tonic generated code + pbjson serde impls
+    c6-core/              ids, session event model helpers, config schema, errors
+    c6-api/               HTTP/WS API types shared by c6h and c6-ui (compiles to wasm)
+    c6-llm/               provider clients, canonical message model, caching/thinking logic
+    c6-agent/             agent loop, context assembly, compaction, subagents
+    c6-tools/             Tool trait and built-in tools
+    c6-testkit/           scripted OpenAI-compatible mock server for tests
+    c6-mcp/               MCP client integration (wraps rmcp)
+    c6-head/              head library: storage, services, API, worker hub
+    c6-worker/            worker library: connection mgr, journal, session runtime, fs/git/pty
+    c6-ui/                Leptos CSR app (wasm), embedded into c6h at build time
+  bins/
+    c6h/                  thin main → c6-head
+    c6w/                  thin main → c6-worker
+</code></pre>
+<p>Key dependencies: tokio, tonic/prost, axum, sqlx (sqlite), reqwest (rustls), serde, schemars, rmcp, ignore/globset/grep-searcher (ripgrep internals), portable-pty, notify, tracing + opentelemetry, rustls + rcgen, uuid (v7), blake3, chacha20poly1305, leptos, tailwind.</p>
+<p>Why a CSR SPA rather than Leptos SSR/server functions: requirement R-HEAD-4 calls for an API that automations and scripts can also use. With a SPA, the UI uses the same versioned <code>/api/v1</code> that those clients will, so there is no second, UI-only API surface. The built assets are embedded in <code>c6h</code>, which keeps it a single binary.</p>
+<h2 id="3-identity-enrollment-and-transport">3. Identity, enrollment and transport</h2>
+<p><strong>Head PKI.</strong> On first start, c6h creates a private CA (rcgen) and a server certificate in its data directory.</p>
+<p><strong>Enrollment.</strong></p>
+<ol>
+<li>In the UI, the user clicks "Add worker". The head creates a one-time enrollment token that contains the head's address, the CA fingerprint and a secret.</li>
+<li>On the worker, the user runs <code>c6w enroll &lt;token&gt;</code>. The worker generates a keypair, sends a CSR plus the secret, pins the CA, and receives a client certificate whose subject is its <code>worker_id</code>.</li>
+<li>The worker keeps its identity in <code>~/.local/state/c6w/identity/</code>. This is the only thing c6w stores long-term apart from caches.</li>
+</ol>
+<p><strong>Transport.</strong> gRPC over HTTP/2 with mTLS on the worker port. h2 keepalive pings detect dead connections; app-level pings measure latency for the UI.</p>
+<p><strong>Versioning.</strong> <code>Hello</code> carries <code>protocol_version</code> (an integer) and a list of <code>capabilities</code>. The head supports versions N and N−1, and rejects anything else with a clear error shown in the UI. Protobuf field rules are followed: fields are only added, never renumbered.</p>
+<h2 id="4-wire-protocol">4. Wire protocol</h2>
+<pre><code class="language-proto">service WorkerHub {
+  // Control plane + durable events. Exactly one per worker connection. (Not named Connect: that collides with tonic's generated client constructor.)
+  rpc Attach(stream WorkerMsg) returns (stream HeadMsg);
+
+  // Data-plane streams, opened by the worker in response to a head request
+  // ("reverse dial"), so bulk/interactive traffic gets its own h2 stream
+  // and never blocks control messages.
+  rpc Pty(stream PtyFrame) returns (stream PtyFrame);
+  rpc PutBlob(stream BlobChunk) returns (BlobAck);
+  rpc GetBlob(BlobRef) returns (stream BlobChunk);
+  rpc Telemetry(stream ExportTraceServiceRequest) returns (TelemetryAck); // OTLP proto types
+}
+
+message WorkerMsg { oneof msg {
+  Hello hello;                 // first message
+  SessionEventBatch events;    // durable, journaled
+  EphemeralBatch ephemeral;    // streaming deltas, tool output chunks; best effort
+  RpcResponse rpc_response;    // reply to a head RpcRequest (fs, git, ...)
+  CredentialRequest cred_req;
+  Ping ping;
+}}
+
+message HeadMsg { oneof msg {
+  Welcome welcome;             // ack positions, config snapshot/version, accepted?
+  EventAck ack;                // cumulative per-session ack
+  SessionCommand command;      // create/resume session, user input, interrupt, set model, ...
+  RpcRequest rpc_request;      // fs.list, fs.read, git.diff, pty.open, ...
+  ConfigUpdate config;         // new config version (full or delta)
+  CredentialGrant cred;        // token response or proactive refresh push
+  Pong pong;
+}}
+</code></pre>
+<p><strong>Handshake.</strong></p>
+<ul>
+<li><code>Hello{worker_id, protocol_version, c6w_version, os, arch, hostname, capabilities, config_version, sessions:[{session_id, last_journaled_seq}]}</code></li>
+<li><code>Welcome{head_version, acks:[{session_id, acked_seq}], config: ConfigUpdate?, pending_commands}</code></li>
+</ul>
+<p>The worker then resends every journaled event with <code>seq &gt; acked_seq</code>.</p>
+<p><strong>Head→worker requests.</strong> Each <code>RpcRequest</code> carries <code>{id, deadline, method, payload}</code>. Small replies come back as <code>RpcResponse</code> on the Attach stream. For streaming methods (<code>pty.open</code>, large <code>fs.read</code>), the worker opens the matching data-plane RPC and tags it with the request id. The head's <code>RpcRouter</code> holds the pending requests and the correlation ids.</p>
+<p><strong>Flow control.</strong> HTTP/2 window flow control carries the bytes. On top of it, the worker bounds the number of unacknowledged durable events it has in flight per session. Ephemeral messages are dropped under backpressure; durable ones never are.</p>
+<h2 id="5-session-model-and-event-log">5. Session model and event log</h2>
+<h3 id="51-entities-head-owned-metadata">5.1 Entities (head-owned metadata)</h3>
+<ul>
+<li><code>Worker{id, name, hostname, os, arch, last_seen, version, status}</code></li>
+<li><code>Workspace{id, worker_id, name, root_path, default_base_branch, use_worktrees}</code></li>
+<li><code>Session{id (UUIDv7), worker_id, workspace_id?, cwd, worktree?, branch?, parent_session_id?, title, model_ref, status, created_at, archived}</code></li>
+<li><code>Terminal{id, worker_id, cwd, status}</code>. A terminal is not a session and is not persisted beyond metadata.</li>
+</ul>
+<h3 id="52-single-writer-log">5.2 Single-writer log</h3>
+<p>Each session has one append-only log, and <strong>only the worker writes to it</strong>. The head never appends.</p>
+<ul>
+<li>User input reaches the worker as a <code>SessionCommand::UserInput{command_id, content}</code>.</li>
+<li>When the worker accepts the input, it appends a <code>UserMessage{command_id, ...}</code> event.</li>
+<li>Until that event syncs back, the UI shows the input as <em>queued</em>. Commands live in a head-side queue and are redelivered after a reconnect. <code>command_id</code> makes delivery idempotent.</li>
+</ul>
+<p>With one writer per log, sync is a cumulative ack per session. No merge or conflict logic is needed.</p>
+<h3 id="53-durable-events">5.3 Durable events</h3>
+<pre><code>SessionEvent { session_id, seq: u64, ts, kind }
+kind =
+  SessionStarted   { model_ref, system_prompt_hash, tool_profile, cwd, git_head }
+  UserMessage      { command_id, parts[] }              // text, image(blob), file refs
+  TurnStarted      { turn_id }
+  AssistantMessage { turn_id, blocks[], stop_reason, provider_opaque? }   // tool calls are ToolUse blocks here
+  ToolResult       { call_id, output_parts[], is_error, truncated, full_output_blob? }
+  Usage            { request_id, model, input, output, cache_read, cache_write, reasoning, cost_micros? }
+  Compaction       { summary, replaces_through_seq }
+  ModelChanged     { model_ref }
+  SubagentSpawned  { child_session_id, call_id }
+  TurnEnded        { turn_id, reason: Completed|Interrupted|Error|WorkerRestarted }
+  Error            { message, retryable }
+</code></pre>
+<ul>
+<li><strong>Ephemeral events</strong> (not journaled) include <code>AssistantDelta</code>, <code>ThinkingDelta</code>, <code>ToolOutputChunk</code> and <code>Status</code>. They are forwarded live to UI subscribers when the worker is connected. The durable events carry the final content, so losing ephemeral events loses nothing.</li>
+<li><strong>Blobs</strong> (images, large tool outputs, attachments) are content-addressed by blake3 hash. They are uploaded via <code>PutBlob</code> before the event that references them, and deduplicated on the head.</li>
+<li><strong>Storage encoding.</strong> Events are stored on both sides as their protobuf bytes, so nothing is transcoded. The API serves them as JSON via pbjson.</li>
+</ul>
+<h3 id="54-worker-journal-and-offline-operation">5.4 Worker journal and offline operation</h3>
+<ul>
+<li>The journal is a SQLite database in WAL mode at <code>~/.local/state/c6w/journal.db</code>, with tables <code>events(session_id, seq, bytes)</code>, <code>outbox_blobs</code>, <code>acks</code> and <code>config_cache</code>.</li>
+<li>Events are fsynced to the journal <strong>before</strong> they are sent to the head. Rows are trimmed once acked, except that the full log of each <em>live</em> session stays cached so turns can be rebuilt without asking the head.</li>
+<li>To resume a session that isn't cached (for example after a worker restart), the worker asks the head for the log (<code>SessionCommand::Resume{events}</code>).</li>
+<li>If the worker crashes mid-turn, then on restart it finds a turn with no <code>TurnEnded</code>, appends <code>TurnEnded{WorkerRestarted}</code>, and does not continue the turn automatically.</li>
+</ul>
+<h2 id="6-head-internals">6. Head internals</h2>
+<table><thead><tr><th>Component</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td><code>WorkerRegistry</code></td><td>Connected workers, their outbound channels, liveness, capabilities</td></tr>
+<tr><td><code>SessionService</code></td><td>Session create/resume/archive, the command queue, routing commands to workers</td></tr>
+<tr><td><code>EventStore</code></td><td>Durable events (sqlx/SQLite), acks, history queries</td></tr>
+<tr><td><code>BlobStore</code></td><td><code>data/blobs/ab/cdef…</code>, content-addressed files</td></tr>
+<tr><td><code>LiveHub</code></td><td>A tokio broadcast channel per session and one for the fleet; fans durable and ephemeral events out to WebSocket subscribers</td></tr>
+<tr><td><code>RpcRouter</code></td><td>Head→worker request/response correlation, deadlines, streaming hand-off</td></tr>
+<tr><td><code>ConfigService</code></td><td>Versioned config documents; computes per-worker effective config; pushes <code>ConfigUpdate</code></td></tr>
+<tr><td><code>CredentialBroker</code></td><td>Encrypted credential storage, OAuth login flows, proactive refresh, <code>CredentialGrant</code></td></tr>
+<tr><td><code>Telemetry</code></td><td>Receives worker OTLP batches, adds head spans, exports to the configured OTLP endpoint</td></tr>
+<tr><td><code>Api</code></td><td>axum <code>/api/v1</code> REST + WebSocket, serves the embedded UI</td></tr>
+</tbody></table>
+<p><strong>Storage trait.</strong> All persistence goes through <code>trait Store</code> (sessions, events, config, credentials). The implementation is <code>SqliteStore</code> using sqlx. A <code>PostgresStore</code> can be added later without touching the services.</p>
+<p><strong>Data dir:</strong> <code>c6h.toml</code> (bootstrap: bind addresses, data dir, OTLP endpoint), <code>c6h.db</code>, <code>blobs/</code>, <code>pki/</code>, <code>master.key</code>. Everything else is configured in the UI and stored in the database.</p>
+<h3 id="61-config-model">6.1 Config model</h3>
+<p>Config documents are layered: <strong>global → worker → workspace → session overrides</strong>. Each document has a monotonic <code>config_version</code>. The head computes each worker's effective config: model refs, connection metadata (no secrets), MCP server definitions, skills (content), global instructions, tool settings and prompt templates.</p>
+<p>Workers cache this config in a non-authoritative way so they can run offline. The head's copy always wins on reconnect.</p>
+<h3 id="62-credentials">6.2 Credentials</h3>
+<p><strong>Storage.</strong> Secrets are encrypted with ChaCha20-Poly1305 under <code>master.key</code> (a file with 0600 permissions, or the OS keychain later).</p>
+<p><strong><code>CredentialGrant{connection_id, auth: ApiKey|Bearer, base_url, extra_headers, expires_at}</code>.</strong></p>
+<ul>
+<li>API keys are long-lived. Workers keep them in memory only.</li>
+<li>OAuth connections (ChatGPT, Claude subscription): the head alone refreshes them, and does so before access tokens expire. It pushes new grants to every connected worker that uses the connection. Workers never see refresh tokens.</li>
+<li>An offline worker keeps working until its cached access token expires.</li>
+</ul>
+<p><strong>ChatGPT sign-in.</strong> This is OpenAI's "Sign in with ChatGPT" for open-source apps (developers.openai.com/siwc/token-sharing-open-source/sign-in): authorization code with PKCE, dynamic client registration (<code>dynamic_agent_client</code> with <code>agent_name_hint=carbon6</code> on first use, then the issued <code>oaiapp_…</code> id), the head's <code>ext_agent_host_id</code> (a <code>urn:uuid:</code> made once and kept in the <code>chatgpt_host_id</code> setting), and the <code>chatgpt.tokens.use.direct</code> scope. The redirect must be the loopback URL <code>http://127.0.0.1:&lt;port&gt;/callback</code> (only the port varies). The head uses its UI port, so a browser on the head's machine completes the flow directly. From any other machine, the user pastes the address the browser ended on into the UI. Any number of accounts and workspaces can be signed in, each its own <code>chatgpt</code> connection with the client id issued to it (client ids are per account; a new account always registers afresh). The head verifies each sign-in's ID token (RS256 against the keys from OpenAI's discovery document, issuer, audience = the client id, expiry, nonce) and keeps its <code>sub</code>, email and workspace (<code>chatgpt_account_id</code>, when present) with the tokens. Adding an account that is already here (same <code>sub</code> and workspace) replaces that connection's sign-in instead of duplicating it. "Sign in again" reuses the connection's client id with <code>id_token_hint</code> and refuses a different account. Refreshes check that a new ID token is still the same account. Claude subscription OAuth is not supported (requirements R-LLM-3).</p>
+<h3 id="63-http-api-sketch">6.3 HTTP API (sketch)</h3>
+<pre><code>GET    /api/v1/workers                         POST /api/v1/workers/enrollments
+GET    /api/v1/workspaces   POST/PATCH/DELETE ...
+GET    /api/v1/sessions?worker=&amp;status=        POST /api/v1/sessions
+GET    /api/v1/sessions/{id}                   GET  /api/v1/sessions/{id}/events?after=SEQ
+POST   /api/v1/sessions/{id}/messages          POST /api/v1/sessions/{id}/interrupt
+PATCH  /api/v1/sessions/{id}                   (title, model, archive)
+GET    /api/v1/workers/{id}/fs/list?path=      GET  /api/v1/workers/{id}/fs/read?path=&amp;range=
+GET    /api/v1/workers/{id}/fs/search?q=       GET  /api/v1/workers/{id}/git/{status|diff|log}?path=
+POST   /api/v1/workers/{id}/terminals          DELETE /api/v1/terminals/{id}
+GET/PUT /api/v1/config/...                     /api/v1/connections, /api/v1/connections/{id}/oauth/*
+GET    /api/v1/blobs/{hash}
+WS     /api/v1/sessions/{id}/stream            durable + ephemeral events, resumes from ?after=SEQ
+WS     /api/v1/terminals/{id}/attach           binary frames (data, resize)
+WS     /api/v1/live                            fleet/session status feed
+</code></pre>
+<h2 id="7-worker-internals">7. Worker internals</h2>
+<pre><code>c6w daemon
+ ├─ ConnectionManager   dial, mTLS, Hello/Welcome, reconnect (exp backoff + jitter), outbox replay
+ ├─ Journal             SQLite WAL; durable events, acks, config cache
+ ├─ SessionManager      HashMap&lt;SessionId, SessionHandle&gt;; spawns one SessionActor task per session
+ │    └─ SessionActor   agent loop (c6-agent), tool registry, MCP clients, cancellation tokens
+ ├─ CredentialCache     in-memory grants; requests/refresh hooks
+ ├─ ProcessManager      background shells, process groups, output ring buffers
+ ├─ FsService           list/stat/read/search/watch (ignore, grep-searcher, notify)
+ ├─ GitService          git CLI wrapper: status/diff/log/branches/worktrees
+ ├─ PtyService          portable-pty; detachable terminals with scrollback ring buffer
+ └─ TelemetryExporter   tracing-opentelemetry → buffered OTLP batches → head
+</code></pre>
+<ul>
+<li><strong>Process groups.</strong> Every spawned process runs in its own process group (<code>setsid</code>). Interrupting a tool or a session kills the whole tree.</li>
+<li><strong>Terminals.</strong> Each runs a login shell in the requested cwd. A PTY outlives the browser connection. On reattach, the worker replays its scrollback ring buffer (default 1 MiB), then streams live output. Terminals die if the worker restarts.</li>
+<li><strong>Worktrees.</strong> When a session is created with <code>use_worktrees</code>, the worker runs <code>git worktree add &lt;state&gt;/worktrees/&lt;repo&gt;/&lt;slug&gt; -b c6/&lt;slug&gt; &lt;base&gt;</code> and reports the path and branch to the head, which records them. Archiving a session can remove the worktree; the branch is kept.</li>
+<li><strong>Git auth.</strong> Git uses the host's own SSH and <code>gh</code> configuration (D-1). <code>c6w git-credential</code> exists from M0 as a credential-helper entry point. Initially it does nothing; later it will fetch tokens for head-managed git connections.</li>
+</ul>
+<h2 id="8-llm-layer-c6-llm">8. LLM layer (<code>c6-llm</code>)</h2>
+<h3 id="81-canonical-model">8.1 Canonical model</h3>
+<pre><code class="language-rust">enum Block {
+    Text(String),
+    Image(BlobRef),
+    Thinking { text: String, signature: Option&lt;String&gt; },   // Anthropic
+    RedactedThinking(Vec&lt;u8&gt;),
+    Reasoning { encrypted: Option&lt;String&gt;, summary: Vec&lt;String&gt; }, // OpenAI Responses
+    ToolUse { id, name, input: Value },
+    ToolResult { id, content: Vec&lt;Block&gt;, is_error: bool },
+}
+struct Message { role: Role, blocks: Vec&lt;Block&gt;, provider: Option&lt;ProviderTag&gt; }
+</code></pre>
+<p>Opaque reasoning data (thinking signatures, encrypted reasoning) is kept and sent back verbatim to the same provider family. If the session switches to a different family, it is dropped and only the visible text is kept.</p>
+<h3 id="82-clients">8.2 Clients</h3>
+<pre><code class="language-rust">trait ModelClient {
+    async fn stream(&amp;self, req: ModelRequest, cancel: CancellationToken)
+        -&gt; Result&lt;BoxStream&lt;'static, Result&lt;ModelEvent&gt;&gt;&gt;;
+}
+</code></pre>
+<table><thead><tr><th>Client</th><th>Covers</th></tr></thead><tbody>
+<tr><td><code>AnthropicMessages</code></td><td>Claude subscription (OAuth), and Anthropic API keys for free</td></tr>
+<tr><td><code>OpenAIResponses</code></td><td>OpenAI API keys, ChatGPT subscription OAuth</td></tr>
+<tr><td><code>OpenAIChat</code></td><td>Any OpenAI-compatible Chat Completions server (local LLMs, gateways)</td></tr>
+</tbody></table>
+<ul>
+<li><strong>HTTP.</strong> reqwest with our own SSE parsing. We use no provider SDK crates, so we keep full control of caching, thinking and beta fields.</li>
+<li><strong>Retries.</strong> Exponential backoff that honours <code>retry-after</code>. Overload and 5xx errors are retried. A context-length error triggers compaction and one retry.</li>
+<li><strong>Model registry.</strong> For each model: context window, max output, thinking/effort support, caching style, image support, pricing, and <strong>tool profile</strong>. Built-in defaults ship with c6w, and the head can override them.</li>
+</ul>
+<h3 id="83-cache-and-reasoning-optimizations">8.3 Cache and reasoning optimizations</h3>
+<ul>
+<li><strong>Stable prefix discipline.</strong>
+<ul>
+<li>The order is tools → system → instructions → history. Tool lists are sorted deterministically.</li>
+<li>Volatile context (date, git status) goes in the first user message, not the system prompt.</li>
+<li>MCP tool schemas are frozen for the life of a session.</li>
+</ul>
+</li>
+<li><strong>Anthropic.</strong> <code>cache_control</code> breakpoints go on the tools and system block, plus a rolling breakpoint on the latest message (and the one before it, staying within the 4-breakpoint limit). Thinking blocks are kept, with their signatures, across tool-use loops. Extended or adaptive thinking and effort are set per model.</li>
+<li><strong>OpenAI Responses.</strong> <code>store: false</code> plus <code>include: ["reasoning.encrypted_content"]</code>, so reasoning carries over statelessly. That way any worker can rebuild any session. <code>prompt_cache_key = session_id</code>, and <code>reasoning.effort</code> is set per session.</li>
+<li><strong>Chat Completions.</strong> Prefix stability only. Provider-specific extras, such as reasoning fields on local servers, go through <code>extra_body</code> set in the model registry.</li>
+<li><strong>Usage accounting.</strong> Cache read and write tokens are recorded in <code>Usage</code> events, and the UI shows the cache hit rate per session.</li>
+</ul>
+<h2 id="9-agent-loop-c6-agent">9. Agent loop (<code>c6-agent</code>)</h2>
+<pre><code>SessionActor loop:
+  recv command
+    UserInput    → append UserMessage; if idle start turn, else queue for next request boundary
+    Interrupt    → cancel token (model stream + running tools); append TurnEnded{Interrupted}
+    SetModel     → append ModelChanged
+  turn:
+    loop {
+      req = ContextBuilder::build(history, model, tool_profile)
+      stream model → forward deltas as ephemeral → collect AssistantMessage → append
+      if no tool calls: break
+      run tool calls (parallel where allowed) → append ToolCall/ToolResult
+      drain queued user input into the next request
+      if tokens &gt; compact_threshold: compact
+    }
+    append Usage(s), TurnEnded{Completed}
+</code></pre>
+<ul>
+<li><strong>ContextBuilder</strong> assembles, in order:
+<ol>
+<li>The base prompt template (from the head)</li>
+<li>Environment (OS, shell, cwd, whether it's a git repo)</li>
+<li>The <code>AGENTS.md</code>/<code>CLAUDE.md</code> hierarchy from the cwd up to the repo root, plus global instructions from the head</li>
+<li>The skills index</li>
+<li>MCP server instructions</li>
+<li>History after the latest <code>Compaction</code></li>
+</ol>
+</li>
+<li><strong>Tool profiles per model family.</strong> Models do best with the tools they were trained on. GPT/Codex models get <code>shell</code> + <code>apply_patch</code> + <code>update_plan</code> (Codex-style). Claude models get <code>Bash</code> + <code>Read</code> + <code>Edit</code> + <code>Write</code> + <code>TodoWrite</code> (Claude Code-style). Both profiles share the same implementations underneath.</li>
+<li><strong>Compaction.</strong>
+<ul>
+<li>Triggered automatically at about 85% of the context window, manually from the UI, or by a context-length error.</li>
+<li>The model is asked to summarize, and a <code>Compaction{summary, replaces_through_seq}</code> event is appended. Later requests use the summary plus the history after it.</li>
+<li>Prefix caching restarts after a compaction. That's expected.</li>
+</ul>
+</li>
+<li><strong>Large tool output.</strong> Output is capped inline (default 30k chars, keeping the head and the tail). The full output goes to a blob and to <code>&lt;state&gt;/tool-output/&lt;call_id&gt;</code>, and the model is told the path so it can read more.</li>
+<li><strong>Subagents.</strong> The <code>Task</code>/<code>spawn_agent</code> tool creates a child session (<code>parent_session_id</code>) on the same worker, with its own log and a restricted tool profile. Its final message becomes the tool result. The UI nests child sessions under their parent.</li>
+</ul>
+<h2 id="10-tools-c6-tools">10. Tools (<code>c6-tools</code>)</h2>
+<pre><code class="language-rust">trait Tool: Send + Sync {
+    fn name(&amp;self) -&gt; &amp;str;
+    fn schema(&amp;self) -&gt; ToolSchema;          // schemars-generated JSON Schema
+    fn concurrency(&amp;self) -&gt; Concurrency;    // Shared (read-only) | Exclusive
+    async fn call(&amp;self, ctx: &amp;ToolCtx, input: Value) -&gt; ToolOutput;
+}
+// ToolCtx: cwd, session_id, cancel token, ephemeral sink (streaming output), ProcessManager, FsService
+</code></pre>
+<table><thead><tr><th>Tool</th><th>Notes</th></tr></thead><tbody>
+<tr><td>Read</td><td>Line-numbered, offset/limit, images → blobs; PDFs later</td></tr>
+<tr><td>Write / Edit</td><td>Exact string replace, <code>replace_all</code>; tracks files read in the session so it can detect files that changed on disk since</td></tr>
+<tr><td>apply_patch</td><td>Codex patch format</td></tr>
+<tr><td>Bash / shell</td><td>Fresh shell per call; cwd persists per session; timeout; <code>run_in_background</code> → id; companion output/kill tools</td></tr>
+<tr><td>Grep / Glob</td><td>ripgrep crates embedded in-process (no external <code>rg</code> needed), respects <code>.gitignore</code></td></tr>
+<tr><td>WebFetch</td><td>reqwest + HTML→Markdown; size cap</td></tr>
+<tr><td>WebSearch</td><td>Uses the provider's native server-side search tool where one exists; otherwise a configurable search API</td></tr>
+<tr><td>TodoWrite / update_plan</td><td>State goes into the event log; the UI renders it</td></tr>
+<tr><td>Task / spawn_agent</td><td>Subagents (§9)</td></tr>
+<tr><td>Skill</td><td>Loads a skill body on demand (the index is in the prompt)</td></tr>
+<tr><td>MCP tools</td><td>Exposed as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code> via rmcp (stdio servers spawned on the worker, HTTP servers dialed from the worker)</td></tr>
+</tbody></table>
+<p>Shared tools run concurrently when the model makes parallel calls. Exclusive tools run one at a time, in the order the model issued them.</p>
+<h2 id="11-observability">11. Observability</h2>
+<ul>
+<li><strong>Workers.</strong> Workers instrument with <code>tracing</code>, and <code>tracing-opentelemetry</code> maps the spans onto the OTel GenAI semantic conventions:
+<ul>
+<li><code>invoke_agent</code> per turn (<code>gen_ai.agent.name</code>, <code>gen_ai.conversation.id = session_id</code>)</li>
+<li><code>chat {model}</code> per model request (<code>gen_ai.operation.name</code>, <code>gen_ai.provider.name</code>, <code>gen_ai.request.model</code>, <code>gen_ai.response.model</code>, <code>gen_ai.usage.input_tokens</code> / <code>output_tokens</code>, cache token attributes, <code>gen_ai.response.finish_reasons</code>)</li>
+<li><code>execute_tool {name}</code> per tool call (<code>gen_ai.tool.name</code>, <code>gen_ai.tool.call.id</code>)</li>
+</ul>
+</li>
+<li><strong>Transport.</strong> Batches of OTLP protobuf go to the head over the <code>Telemetry</code> RPC. Offline workers buffer them in a bounded ring and drop the oldest when it fills. Telemetry is best-effort; token usage is recorded durably in the events.</li>
+<li><strong>Head.</strong> The head adds its own spans (API, sync, credential refresh) and exports traces, metrics and logs to the configured OTLP endpoint. Capturing prompt and response content in spans is opt-in.</li>
+</ul>
+<h2 id="12-web-ui-c6-ui">12. Web UI (<code>c6-ui</code>)</h2>
+<ul>
+<li>Leptos CSR with Tailwind, embedded into c6h with rust-embed. It talks only to <code>/api/v1</code>, using shared types from <code>c6-api</code>.</li>
+<li><strong>Views:</strong>
+<ul>
+<li>Fleet: workers, status, sessions</li>
+<li>Session: streaming transcript, thinking, collapsible tool calls, todo panel, usage and cache stats, model and effort picker, interrupt</li>
+<li>File browser: tree, viewer, search, git diff</li>
+<li>Terminals: tabs per worker</li>
+<li>Settings: connections and OAuth, models, MCP, skills, instructions, workspaces</li>
+</ul>
+</li>
+<li><strong>JS interop</strong> (bundled, no CDN): xterm.js for terminals, CodeMirror 6 for viewing code (and editing later). Markdown is rendered client-side, sanitized.</li>
+</ul>
+<h2 id="13-security-posture-single-user-yolo">13. Security posture (single-user, yolo)</h2>
+<ul>
+<li>No login. The protection is the network: both ports bind only to the configured private or tailnet addresses, and c6h refuses to bind <code>0.0.0.0</code> unless forced with a flag. Browser-borne attacks (cross-site requests, cross-site WebSockets, DNS rebinding) are refused by <code>Host</code>/<code>Origin</code> checks (see §16).</li>
+<li>The worker port requires mTLS. Without an enrolled certificate, nobody can impersonate a worker or pull credentials.</li>
+<li>Workers never receive refresh tokens. Revoking a worker in the UI invalidates its certificate (CRL check at handshake) and stops grants to it.</li>
+<li>Tools run as the worker's OS user with no sandbox. Recommended: run c6w under a dedicated user account on shared machines.</li>
+</ul>
+<h2 id="14-testing-strategy">14. Testing strategy</h2>
+<ul>
+<li><strong>Mock LLM server.</strong> Scripted SSE responses for all three wire formats give deterministic agent-loop and tool tests.</li>
+<li><strong>In-process integration tests.</strong> Head and worker run in one test process, joined by a real tonic channel:
+<ul>
+<li>Kill the connection mid-turn and check that the turn completes, the journal replays, and the head's log matches the worker's exactly.</li>
+<li>Restart the worker mid-turn and check for <code>TurnEnded{WorkerRestarted}</code>.</li>
+</ul>
+</li>
+<li><strong>Provider fixtures.</strong> Recorded real responses (redacted) guard the parsers for thinking, reasoning and tool-call streams.</li>
+<li><strong>Golden tests</strong> for ContextBuilder output, to catch prompt changes that break cache prefixes.</li>
+<li><strong>Eval harness (M5).</strong> A small task suite run against real models to compare tool profiles and prompts.</li>
+</ul>
+<h2 id="15-milestones">15. Milestones</h2>
+<table><thead><tr><th>M</th><th>Scope</th><th>Done when</th></tr></thead><tbody>
+<tr><td>M0</td><td>Workspace, protos, PKI and enrollment, Attach/heartbeat, fleet page</td><td>A worker enrolls and shows as online in the UI</td></tr>
+<tr><td>M1</td><td>OpenAIChat client, agent loop, core tools (Read/Write/Edit/Bash/Grep/Glob), journal + sync, session view with streaming</td><td>A coding task runs end-to-end on a remote worker and survives a disconnect</td></tr>
+<tr><td>M2</td><td>Anthropic + Responses clients, OAuth connections, caching/thinking, model registry, tool profiles, compaction</td><td>Daily use on Claude and GPT models with high cache hit rates</td></tr>
+<tr><td>M3</td><td>Remote fs browser, git status/diff, worktrees, terminals</td><td>IDE-like browsing and shells from the head</td></tr>
+<tr><td>M4</td><td>MCP, skills, subagents, web tools, background shells, OTLP export</td><td>Feature parity with the requirements</td></tr>
+<tr><td>M5</td><td>Hardening: chaos tests, evals, performance, UX polish</td><td>Comfortable as the only harness</td></tr>
+</tbody></table>
+<h2 id="16-implementation-notes-m1m5">16. Implementation notes (M1–M5)</h2>
+<p>Decisions made while building M1 that refine the sections above:</p>
+<ul>
+<li><strong>Command delivery is per connection and ordered.</strong> Durable commands (create, input) are rows in the head's <code>commands</code> table. The API only inserts a row and wakes the worker's connection task, and that one task sends pending rows in <code>seq</code> order. A session's <code>Create</code> therefore always arrives before its inputs. Interrupts are not stored; they are sent only if the worker is connected.</li>
+<li><strong>Queued input is recorded at the request boundary.</strong> The worker appends <code>UserMessage</code> when the input actually goes into a model request, not when it arrives. Recording it on arrival would interleave it between tool calls and their results in the log. Until then the head shows the input as queued, and a worker restart simply gets it redelivered.</li>
+<li><strong>A rejected <code>Create</code> fails the session.</strong> The session gets status <code>failed</code> with the worker's reason (for example, a missing working directory), and everything queued behind it is rejected.</li>
+<li><strong>No head↔worker read loop ever blocks on control replies.</strong> Pongs and acks use <code>try_send</code>: acks are cumulative, and losing a pong is harmless. This prevents a deadlock when both directions' buffers fill.</li>
+<li><strong>Providers (M2).</strong> There are three wire clients. Anthropic Messages (<code>anthropic</code>), OpenAI Responses (<code>openai</code>, and <code>chatgpt</code> with plan tokens), and Chat Completions (<code>openai_compat</code>).
+<ul>
+<li>Anthropic: adaptive thinking with <code>display: "summarized"</code> and effort via <code>output_config.effort</code>. Thinking blocks, including empty ones with only a signature, are stored and sent back unchanged. Caching uses an explicit breakpoint on the system prompt plus top-level automatic caching. Tools use <code>eager_input_streaming</code>, and the agent parses tool input strictly.</li>
+<li>Responses: <code>store: false</code> with <code>include: ["reasoning.encrypted_content"]</code>. Reasoning items are kept in output order and sent back.</li>
+<li>A client skips another provider's reasoning blocks.</li>
+</ul>
+</li>
+<li><strong>Stop reasons.</strong> If a response hits <code>max_tokens</code> with tool calls, none of them run: the model gets an error result for each. A <code>refusal</code> ends the turn with an error.</li>
+<li><strong>Tool profiles (M2).</strong> The profile is chosen from the model when the session starts and recorded in <code>SessionStarted.tool_profile</code>, so the tool list never changes during a session. All three present the same implementations:
+<ul>
+<li>Generic: read, write, edit, bash, grep, glob, update_plan.</li>
+<li>Claude: Read, Write, Edit, Bash, Grep, Glob, TodoWrite, with Claude Code's parameter names.</li>
+<li>Codex: shell (argv), apply_patch (Codex patch format, whole patch validated before writing), update_plan.</li>
+</ul>
+</li>
+<li><strong>Compaction (M2) is "simple compaction".</strong>
+<ul>
+<li>When the last request used 85% of the context window, or the provider reports a context overflow, the same model summarizes the conversation. It runs with the same system prompt and tools, so the cached prefix is reused.</li>
+<li>A <code>Compaction</code> event then replaces the whole history with the summary, and nothing older is sent again. This keeps the history append-only, which providers that check reasoning blocks against the history require.</li>
+</ul>
+</li>
+<li><strong>Head→worker RPC (M3).</strong> <code>RpcRequest</code>/<code>RpcResponse</code> on the Attach stream, with JSON payloads and an id that matches each response to its request. The methods are <code>fs.list</code>, <code>fs.read</code>, <code>git.status</code>, <code>git.diff</code>, <code>git.log</code> and <code>pty.*</code>. The worker handles each one in its own task, so a slow git call never blocks the read loop. The head's API endpoints pass requests straight through to the worker.</li>
+<li><strong>Terminals (M3).</strong>
+<ul>
+<li>Each terminal is a <code>portable-pty</code> login shell that lives on the worker, with 1 MiB of scrollback, until its shell exits or it is closed.</li>
+<li>To attach, the browser opens a WebSocket to the head. The head asks the worker (RPC <code>pty.attach</code> with a one-time token) to open a <code>Pty</code> gRPC stream back to it, then joins the two.</li>
+<li>The worker sends the scrollback, then live output. It takes the scrollback snapshot and subscribes to live output under one lock, so no output is lost or duplicated between them.</li>
+</ul>
+</li>
+<li><strong>Worktrees (M3).</strong> <code>CreateSession.worktree</code> runs <code>git worktree add -b c6/&lt;id&gt; &lt;state&gt;/worktrees/&lt;repo&gt;/&lt;id&gt; HEAD</code> and starts the session at the same relative path inside it. <code>SessionStarted</code> records the branch and repo root. Worktrees are kept when a session is archived; removing them is manual for now.</li>
+<li><strong>Claude Code backend.</strong> Each turn runs <code>claude -p --output-format stream-json</code> in the session's directory and maps its output onto session events (see requirements R-LLM-3).</li>
+<li><strong>Tools (M4).</strong>
+<ul>
+<li>Every profile gains background shells (<code>run_in_background</code> plus output and kill tools), <code>web_fetch</code> (HTML converted to Markdown), and <code>Task</code>/<code>task</code> subagents (Claude and generic profiles).</li>
+<li>Anthropic and OpenAI (api.openai.com) sessions also get the provider's own web search tool. Its calls and results are stored as <code>Opaque</code> blocks and replayed verbatim; Anthropic's <code>pause_turn</code> resends the request so the provider can continue.</li>
+<li>The tool set is fixed when a session starts: the profile's tools, <code>Skill</code>/<code>load_skill</code> if there are skills, then MCP tools sorted by name.</li>
+</ul>
+</li>
+<li><strong>MCP and skills (M4).</strong>
+<ul>
+<li>Configured on the head (settings <code>mcp_servers</code>, <code>skills</code>) and copied into each <code>CreateSession</code>.</li>
+<li>MCP stdio servers run on the worker in the session directory; HTTP servers are reached from the worker. A server that fails to start shows as an error event and does not fail the session.</li>
+<li>Skills come only from the head's settings (enabled ones), and the skills index goes at the end of the system prompt.</li>
+</ul>
+</li>
+<li><strong>Subagents (M4; actors since docs/subagents.md).</strong>
+<ul>
+<li><code>Task</code> runs a child session on the same worker, with the same system prompt and model, the parent's tools minus <code>Task</code>, and a fresh conversation. Its final report is returned as the tool result.</li>
+<li>The child is a session with its own actor (<code>SessionManager::start_subagent</code>). Its journaled spec carries <code>CreateSession.delegation</code> (parent, call, root, the named agent's tool list, depth), so a reload rebuilds the same tools (<code>subagent::delegated_tools</code>). The task goes to it as <code>ActorMsg::Delegate</code> (logged as a <code>UserMessage</code> with <code>delegated_by</code> and the subagent note in <code>prompt</code> only); the runner waits for that turn's outcome, read from the log when the turn closes. Stopping the parent's turn sends the child <code>Interrupt</code>.</li>
+<li>It uses its parent's live tool hooks and policies (held calls wait in the parent), publisher, memory, notices and head caller (<code>SessionManager</code> keeps each actor's <code>SessionTools</code> and loads the parent if needed). Secrets are fetched on behalf of the root session, whose row always exists on the head. No checkpoints: subagents are not rewound.</li>
+<li>The parent logs <code>SubagentSpawned { call_id, child_session_id, agent, description, background_task_id }</code> before the child starts.</li>
+<li>A delegation that did not complete returns a digest from the child's log (<code>subagent::digest</code>: status, turns, tool calls, elapsed time, last message, files its own successful write/edit/patch calls changed, errors, its subagents) followed by the editable <code>session.subagent_partial</code> prompt, as an error result. <code>recover()</code> gives a foreground <code>Task</code> call left waiting by a restart that digest (<code>status="lost"</code>) before closing the turn; a lost background subagent's notice carries it too.</li>
+<li>Migration 0040: <code>sessions.agent</code>, <code>end_reason</code> (the last turn's, set at ingest) and <code>root_id</code> (the top-level session of side chats and subagents); <code>api::Session</code> has <code>agent</code> and <code>end_reason</code>.</li>
+<li>Continuing: <code>SendMessage</code>/<code>send_message</code> (<code>to</code>: a session id or background task id of a subagent this session started) starts a delegation in an idle subagent, or joins a running one's turn (<code>ActorMsg::Delegate</code> without a waiter) and returns at once; <code>BashOutput</code>/<code>bash_output</code> with a subagent id returns its digest. Subagents take your messages (<code>UserInput.wake</code>) and <code>POST /sessions/{id}/resume</code> (the <code>session.subagent_resume</code> prompt, <code>command: "resume"</code>). A subagent turn no call waited on ends with <code>ActorMsg::ChildReport</code> to the parent: a notice that joins a running turn, starts one with <code>wake</code> (within the hourly limit), or else waits for the parent's next input. Side chats on subagents and <code>Restore</code> of subagents (spec with <code>delegation</code>; tools from <code>SessionStarted.tools</code>) are allowed.</li>
+<li>Nesting: subagents get <code>Task</code> and <code>SendMessage</code> while their depth is below <code>CreateSession.max_subagent_depth</code> (the <code>subagent-limits</code> setting, default 3); <code>SessionManager::working</code> counts a tree's running delegations against <code>max_running_subagents</code> (default 16). Cost and archiving cover the whole tree; <code>GET /sessions/{id}/children?tree=1</code> lists it.</li>
+<li>UI: a <code>Task</code> call's card has the subagent's thread under it (<code>subagent_thread</code>: collapsed, a live peek of its last steps while it runs, or its transcript with Stop, Resume and a reply box with <em>wake</em>); a <code>SendMessage</code> card links to the thread. The header's ◆ list (<code>SubagentsPill</code>) shows the tree and opens threads through <code>ForceOpen</code>. A subagent's page has its lineage and a reply box. <code>Session.subagents_running</code> (top-level sessions in the live list) and <code>root_id</code> tell transcripts when to refresh their children. Find in session and search follow subagents like side chats.</li>
+<li>Claude Code sessions mirror Claude Code's own subagents into read-only child sessions (<code>sessions.observed</code>, migration 0041), built from the stream's <code>parent_tool_use_id</code> traffic.</li>
+<li>The child's log syncs like any session's. The head creates its row when the first event arrives (<code>SessionStarted.parent_session_id</code>). Child sessions are hidden from the main list and take no messages.</li>
+</ul>
+</li>
+<li><strong>Telemetry (M4) differs from §11.</strong>
+<ul>
+<li>Spans are built on the head from session events when a turn ends, rather than emitted by workers. There is one trace per session: <code>invoke_agent</code> per turn, <code>chat {model}</code> per model response (with <code>gen_ai.usage.*</code> including cache read and write), and <code>execute_tool {name}</code> per tool result.</li>
+<li>Spans are exported over OTLP/HTTP protobuf to <code>otlp_endpoint</code> or <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>. Turns that ran while a worker was offline are exported when they sync.</li>
+</ul>
+</li>
+<li><strong>Browser hardening (M5).</strong>
+<ul>
+<li>There is no login, but a web page in the user's browser can still reach the head: cross-site WebSockets need no CORS approval, simple cross-site POSTs need no preflight, and DNS rebinding can make a hostile name resolve to the head.</li>
+<li>So every UI/API request must carry a <code>Host</code> the head owns: listen address, hostname, <code>localhost</code>, advertised name or <code>extra_names</code>. Anything else gets 421.</li>
+<li>Any request with a foreign <code>Origin</code> gets 403, which covers terminal WebSockets.</li>
+</ul>
+</li>
+<li><strong>Restore and journal trimming (M5).</strong>
+<ul>
+<li>A worker that has lost a session rejects input as "unknown session" (for example after a reinstall, or because the journal trimmed it). The head then queues <code>Restore{spec, events}</code>, which carries its authoritative log, followed by a fresh copy of the input. This happens at most once a minute per session.</li>
+<li>Because of that, workers trim sessions from their journal once they are fully acknowledged, not mid-turn, and idle for 7 days.</li>
+<li>Messages up to 64 MiB are allowed in both directions.</li>
+</ul>
+</li>
+<li><strong>Wildcard binds.</strong> With <code>bind = ["0.0.0.0"]</code> (or <code>::</code>, which needs <code>allow_public_bind</code>), the head treats every interface address of that family as its own: they go into the server certificate, the advertised worker URL (tailnet first) and the Host allowlist. The dev config binds this way. The head also asks Tailscale (<code>tailscale status --json</code>) for its MagicDNS name at startup and answers to it and its short form, so <code>http://&lt;machine&gt;.&lt;tailnet&gt;.ts.net:7700</code> works without <code>extra_names</code>.</li>
+<li><strong>Live deltas are coalesced (M5).</strong> The worker batches text, thinking and tool-output deltas over 25 ms and merges consecutive deltas from the same stream before sending.</li>
+<li><strong>Evals (M5).</strong> <code>c6-eval</code> with tasks in <code>evals/tasks</code> (see <code>evals/README.md</code>).</li>
+<li><strong>Side chats.</strong>
+<ul>
+<li>A side chat is a child session (<code>parent_id</code>, no <code>parent_call_id</code>) that branches after one event of its parent (<code>fork_seq</code>). It runs on the parent's worker, in the parent's real directory, with its own model.</li>
+<li>The head builds its context as a <code>seed</code> in <code>CreateSession</code>: the ancestors' seed, then the parent's events up to the branch point, plus results of tool calls already made by then. The worker prepends the seed to the history and keeps it in the journaled spec, so reloads and <code>Restore</code> keep the context.</li>
+<li>If the seed came from a different model, signed/encrypted reasoning and provider tool blocks are dropped from it. Claude Code sessions get the seed as a text transcript with the first question.</li>
+<li>The base prompt gains a note that this is a side conversation that should not change files unless asked. Side chats take messages and can have their own side chats; the UI shows them as collapsible threads under the message they branch from.</li>
+</ul>
+</li>
+<li><strong>Model switching.</strong>
+<ul>
+<li>A message can switch its session to another connection, model or reasoning effort (<code>UserInput.model</code>; the UI offers it in the reply box of sessions and side chats). The worker applies it at the start of the next turn, never mid-turn: it records <code>ModelSwitched</code> before the user message, then runs on the new model. The head updates the session row when it ingests the event.</li>
+<li>Signed/encrypted reasoning and provider tool blocks from before the switch are dropped from the history, since only the model that wrote them accepts them. A reloaded session resumes on the last switched-to model.</li>
+<li>Tools and system prompt stay as the session started (a stable prefix). Switching into or out of Claude Code is refused. An effort-only switch keeps the reasoning in the history.</li>
+</ul>
+</li>
+<li><strong>Rewind.</strong> Before each turn's first message the worker records <code>Checkpoint { commit }</code>: a commit of the session directory in a private git repository under <code>&lt;state&gt;/checkpoints/&lt;session&gt;.git</code> (its own index; the work tree's .gitignore files plus a default exclude list apply). <code>Rewind { to_seq, restore_files }</code> (head-validated: <code>to_seq</code> must be a user message; queued like input, so an edit's new message follows it) interrupts a running turn, optionally restores the files to the last checkpoint before <code>to_seq</code> (files created since are deleted), and appends <code>Rewound</code>. <code>effective_events</code> drops a session's own events from <code>to_seq</code> on wherever history is rebuilt (side-chat seeds included, each session's part starting at its <code>Started</code>). The log stays append-only: the UI folds rewound events under the marker.</li>
+<li><strong>Attachments.</strong> <code>UserInput.attachments</code> / <code>UserMessage.attachments</code> carry <code>{name, mime, data}</code> in the log (images: PNG/JPEG/GIF/WebP; anything else is UTF-8 text, <code>text/plain</code>). The head validates uploads (10 MB each, 20 MB per message) on <code>POST /sessions/{id}/messages</code> and on create, and serves them back at <code>/sessions/{id}/attachments/{seq}/{index}</code>; the UI API lists only name, mime and size. <code>@path</code> tokens are resolved by the worker actor when the input arrives (<code>mentions.rs</code>: files ≤256 KB inline, images ≤5 MB, folder listings ≤300 entries), so replays see exactly what the model saw. In history, images become <code>Block::Image</code> (Anthropic <code>image</code> base64 source; Chat Completions <code>image_url</code> data URL parts; Responses <code>input_image</code>) and text files <code>&lt;file name="…"&gt;</code> blocks after the message text; search indexes text attachments. <code>fs.find</code> (worker RPC, <code>GET /workers/{id}/fs/find</code>) is the composer's fuzzy finder: gitignore-aware walk, 50k entries max.</li>
+<li><strong>Slash commands.</strong> Custom commands are the head's <code>commands</code> setting (<code>c6_api::CommandDef</code>). When a message (or a new session's first prompt) starts with <code>/name</code> naming an enabled one, the head puts its name and template in <code>UserInput.command</code>/<code>command_template</code>, so commands apply as they are when sent. The worker actor expands the message when it arrives (<code>commands.rs</code>), before resolving @-mentions: <code>UserMessage.command</code> names the command and <code>UserMessage.prompt</code> holds what the model gets instead of the text (history, Claude Code input and transcripts use <code>prompt</code> when set). Built-ins (<code>compact</code>, <code>init</code>, <code>review</code>) live on the worker; a custom command of the same name wins. <code>!`cmd`</code> runs <code>sh -c</code> in the cwd (30 s, 64 KB). Unknown commands stay text. <code>/compact [focus]</code> is a turn of its own: the inbox never merges it with other input, and <code>compact_turn</code> asks the model for a summary (with the focus) and records <code>Compaction</code>; the <code>/compact</code> message itself is left out of history. <code>/clear</code> (a new session, same worker, folder and model) and <code>/export</code> (<code>GET /sessions/{id}/export</code>: Markdown of the effective events, tool calls folded) are UI-side. <code>GET /api/v1/commands</code> (built-ins from <code>c6_api::BUILTIN_COMMANDS</code> plus enabled custom ones) feeds the composer's picker. No command files are read.</li>
+<li><strong>Named agents.</strong> The head's <code>agents</code> setting (<code>c6_api::AgentDef</code>) is copied into <code>CreateSession.agents_json</code>. When a session has enabled agents, its Task tool lists them in its description and takes <code>subagent_type</code> (an enum including <code>general-purpose</code>). The runner gives a named agent its instructions as the system prompt (plus the cwd and date), only the tools it allows (matched across profiles: <code>Read</code> = <code>read</code>, <code>Bash</code> = <code>shell</code>, <code>Edit</code> = <code>apply_patch</code>…), and its <code>model</code> when the connection is Anthropic. No agent files are read.</li>
+<li><strong>Hooks.</strong> Stored on the head as the <code>hooks</code> setting (<code>GET</code>/<code>PUT /api/v1/settings/hooks</code>, a validated list of <code>c6_api::Hook</code>: name, event, matcher, folder, command, timeout, enabled) and copied into <code>CreateSession.hooks_json</code> like MCP servers and skills, so a session keeps the hooks it started with. No files are read. <code>hooks.rs</code> builds a <code>HookRunner</code> from the enabled hooks whose folder contains the session's cwd. <code>c6_tools::Hooks</code> (on <code>SessionTools</code>) is called by the turn loop: <code>pre_tool_use</code> before a call (a block becomes an error result), <code>post_tool_use</code> after (feedback is appended to the logged result), <code>stop</code> when the model would end the turn (feedback is logged as a <code>UserMessage</code> with <code>command: "stop-hook"</code>, at most 10 times per turn). Subagents get the parent's tool hooks but not Stop. The actor runs <code>UserPromptSubmit</code> on receipt (after command expansion and mentions): a block records the message with <code>UserMessage.blocked</code> (so the head's command completes; history skips it), context goes into <code>prompt</code>. <code>SessionStart</code> output is appended to the system prompt at creation. Hooks run in parallel per event, <code>sh -c</code> in the cwd, 60 s default timeout. Claude Code sessions instead get them converted to Claude Code settings and passed as <code>claude --settings</code>.</li>
+<li><strong>Labels.</strong> A session's own labels are a JSON array on its row (<code>sessions.labels</code>, migration 0010). The automatic ones are derived from <code>worker_name</code> (set at creation), <code>repo</code>, <code>folder</code> and <code>home</code> (set from <code>SessionStarted.repo</code>/<code>cwd</code>/<code>home</code> at ingest) and the current <code>model</code>, by <code>c6_api::labels::auto_labels</code>. <code>c6_api::labels</code> holds the matching shared by head, worker, UI and CLI: <code>applies</code> (every selector label must match; <code>folder:</code>/<code>repo:</code> by path-segment prefix, others exactly) and <code>best</code> (among same-named items, the most labels wins, the later one on a tie). The head passes its labels (yours plus <code>worker:</code>) in <code>CreateSession.labels</code> and, with each message, <code>UserInput.labels</code>; the worker adds <code>repo:</code> (<code>git remote get-url origin</code>, normalized to host/owner/name), <code>folder:</code> and <code>model:</code>. The worker filters agents, skills and hooks when a session's tools are built. For commands the head sends every enabled variant of the name (<code>command_candidates_json</code>) and the worker picks with <code>best</code>, so label changes apply to the next message. <code>GET /commands?session=</code> lists the variants that apply; <code>GET /sessions/{id}/config</code> explains what applies and why not (<code>Applied.skipped</code>); <code>PUT /sessions/{id}/labels</code> edits yours. <code>GET /search?labels=</code> keeps sessions whose labels match (checked per candidate session, before the result limit). Side chats copy their parent's labels; subagent sessions copy them at ingest. A hook's older <code>folder</code> field acts as a <code>folder:</code> selector.</li>
+<li><strong>Background tasks.</strong> <code>c6_tools::Background</code> holds a session's background shell commands and subagents (Task <code>run_in_background</code> spawns the subagent run and returns at once; <code>finish_agent</code> records the report). With a sink set (the worker's actor, for non-Claude Code sessions), each start and end becomes a <code>TaskEvent</code>; the actor logs a <code>BackgroundTask</code> event (state started, finished, stopped, stopped_by_user or lost) and, for ends the agent should hear about (<code>notify</code> and not stopped by the agent itself), queues a <code>UserMessage</code> with <code>command: "task-notification"</code> and an XML-ish notice. The inbox delivers it at the next model boundary of a running turn, or starts a turn in an idle session (at most <code>AUTO_TURNS_PER_HOUR</code> = 20 per hour; extra notices wait for the next user input and an <code>Error</code> event says so). <code>StopTask</code> (a direct command like <code>Interrupt</code>, <code>POST /sessions/{id}/tasks/{task}/stop</code>) kills a task as the user. The worker journal counts open tasks per session; <code>recover()</code> resumes those sessions, which mark unfinished tasks <code>lost</code>, stop the old process group if it still runs the same command (<code>pgid</code> is in the started event), and notify. The UI derives the running list from the events.</li>
+<li><strong>Secrets.</strong> <code>secrets</code> table (migration 0011): name (an environment variable name), value encrypted under <code>master.key</code>, description, <code>applies_to</code>. <code>GET /settings/secrets</code> lists them without values; <code>PUT /settings/secrets/{name}</code> sets (value optional when updating). Each new session's spec carries the index (<code>secrets_json</code>, no values); the worker lists the applicable names in the system prompt and, at each turn's start, fetches their values as credentials named <code>secret:&lt;NAME&gt;</code> over the existing credential channel (head-decrypted, 5-minute expiry; a secret with <code>worker:</code> selectors is refused to other workers). <code>SessionTools::set_secrets</code> puts them in the environment of bash and background commands; <code>Secrets::redact</code> replaces values (4+ chars) with <code>[secret:NAME]</code> in their output, streamed and final, and in background-task notices. Subagents share the parent's secrets.</li>
+<li><strong>SSH targets.</strong> <code>CreateSession.ssh_target</code> (API <code>ssh</code>; <code>sessions.ssh_target</code>, migration 0012) makes a session work on another machine through its worker. <code>c6_tools::remote::SshHost</code> runs everything through OpenSSH with <code>BatchMode</code>, a shared <code>ControlMaster</code> socket under <code>/tmp/c6-ssh-&lt;uid&gt;</code>, and <code>C6_SSH_BIN</code> for tests. Scripts go over stdin into a self-deleting 0600 temp file run by bash (or sh) with stdin from /dev/null, so secrets never reach a command line; scripts record their process group in a pid file so a timeout, an interrupt or a stopped background task kills it on the target. <code>SessionTools::with_ssh</code> routes bash (cwd tracked with a marked line), background commands, read/write/edit/apply_patch (<code>cat</code>, <code>mkdir -p &amp;&amp; cat &gt;</code>, <code>stat</code>) and grep (<code>rg</code>, else <code>grep -E</code>) and glob (<code>find</code> listed remotely, matched locally) to the target; <code>~</code> is the remote home. The worker's <code>create_remote</code> probes the target (home, folder, OS line, git remote for <code>repo:</code>), writes a remote environment section and the target's AGENTS.md/CLAUDE.md into the system prompt, and records <code>SessionStarted.ssh_target</code>/<code>system</code>; hooks and MCP servers run in a local <code>scratch/&lt;session&gt;</code> folder; checkpoints and @-mentions are skipped. <code>pty.open</code> takes <code>ssh</code> for a login shell on the target. Labels gain <code>host:&lt;host&gt;</code>.</li>
+<li><strong>Web search.</strong> The head's <code>web_search</code> setting (<code>c6_api::WebSearchSetting</code>: provider brave/tavily/searxng, URL, the secret holding the key, <code>always</code>) is copied into <code>CreateSession.web_search_json</code>. <code>build_tools</code> adds <code>c6_tools::WebSearch</code> (<code>web_search</code> / <code>WebSearch</code>) when a provider is set and the model's provider has no server-side search (Chat Completions), or always if asked. The tool reads its key from the session's secrets (so the secret must apply to the session), calls the provider's JSON API, and returns numbered title/URL/snippet results.</li>
+<li><strong>Outputs.</strong> <code>c6_tools::Publish</code> (<code>publish_file</code> / <code>PublishFile</code>, in every tool set) reads the file (locally or on the SSH target, up to 20 MB) and sends it to the session's publisher (subagents use the parent's); the actor logs a <code>SessionEvent::Output { name, title, mime, data }</code>, so each publish is a version with its content as it was. The API lists outputs without content (<code>EventKind::Output { size }</code>) and serves them at <code>GET /sessions/{id}/outputs/{seq}</code> (<code>?download=1</code>), with <code>nosniff</code> and, for anything that could run script (HTML, SVG, unknown types), <code>Content-Security-Policy: sandbox …</code> so a page the agent wrote gets an opaque origin and cannot use your session; the UI previews those in sandboxed iframes. The Outputs tab groups versions by name.</li>
+<li><strong>Templates.</strong> The head's <code>templates</code> setting (<code>c6_api::Template</code>). <code>templates::run</code> resolves the targets (named workers, <code>*</code> for every online worker, or the first online one; times each SSH target), the connection (name or id) and model, fills the prompt (<code>{{input}}</code>, <code>{{target}}</code>, <code>{{date}}</code>, <code>{{time}}</code> in the head's local time), and creates one session per target through <code>sessions::create</code>, each labelled with the template's labels plus <code>template:&lt;name&gt;</code> and <code>run:&lt;id&gt;</code> (an 8-hex run id). <code>POST /templates/{name}/run</code> returns the sessions and per-target errors.</li>
+<li><strong>Automations.</strong> <code>automations</code> table (migration 0013): a template plus a trigger, <code>schedule</code> (<code>cron::Schedule</code>: five fields with lists, ranges, steps and names, <code>@daily</code>/<code>@hourly</code>/…, dom/dow OR-ed as in cron, evaluated with <code>chrono::Local</code>) or <code>webhook</code> (a 24-byte token, stored as SHA-256, shown once; <code>POST /api/v1/webhooks/{id}/{token}</code> is exempt from sign-in, compares in constant time, answers 404 to a wrong or disabled token, takes up to 1 MB, pretty-prints JSON into <code>{{input}}</code>). A head task wakes every 30 s and fires each enabled schedule with a time in (last check, now]; missed times are not replayed. <code>fire</code> runs the template with the label <code>automation:&lt;name&gt;</code> and records last run, run id and error. <code>/api/v1/automations</code> lists, creates, edits, runs now, rotates a webhook token and deletes.</li>
+<li><strong>Connectors.</strong> <code>c6_mcp::ServerConfig</code> has <code>applies_to</code> and, for HTTP servers, <code>bearer</code>; <code>with_secrets</code> fills <code>${NAME}</code> in command, args, env, URL and bearer from the session's secrets, reporting names it lacks. The worker fetches the applicable secret values before building a session's tools (create and resume) and starts only servers that apply and have their secrets; the rest become setup errors in the session. Commands from the head are applied in order by a task of their own, so the connection's read loop keeps going (a create that waits on a credential would otherwise wait on itself). The UI's MCP editor offers presets (GitHub, Slack, PostgreSQL, Playwright browser, remote HTTP).</li>
+<li><strong>Memory.</strong> <code>memories</code> table (migration 0014: id, scope label, text, writing session). New sessions get the newest 500 in <code>CreateSession.memories_json</code>; the worker keeps those whose scope matches the session's labels (or is empty) and writes a Memory section into the system prompt (most specific first, newest first, 8 KB), naming the session's labels as scopes. <code>c6_tools::Remember</code>/<code>Forget</code> send changes to the actor, which logs <code>SessionEvent::Memory { op, id, scope, text }</code>; the head applies them to the table when it ingests the event. <code>/api/v1/memories</code> lists, creates, edits and deletes.</li>
+<li><strong>Policies and approvals.</strong> The head's <code>policies</code> setting (<code>c6_api::Policy</code>: name, <code>applies_to</code>, tool-name regex, input regex, <code>ask</code>/<code>deny</code>, message; regexes checked on save) goes into <code>CreateSession.policies_json</code>. The worker's <code>policy::Policies</code> (the applicable ones) runs first in a <code>Chain</code> with the settings hooks, as <code>Hooks::pre_tool_use</code>, which now gets the call id. A denial is the tool's error result. <code>ask</code> logs <code>SessionEvent::Approval { state: "requested", tool, input (4 KB), policy, message }</code> and waits on a oneshot for up to an hour (the turn loop's interrupt ends the wait; a guard logs <code>expired</code>). <code>POST /sessions/{id}/approvals/{call_id}</code> sends the direct <code>Approve</code> command; the actor resolves the wait and logs <code>allowed</code>/<code>denied</code>. The head counts open requests in <code>sessions.awaiting</code> (migration 0015; reset at <code>TurnEnded</code>) and exposes <code>Session.awaiting_approval</code>, which the UI uses for the inbox section, the badge, the dock, notifications and whether the transcript card shows its buttons.</li>
+<li><strong>Memex (phase 6, step 1).</strong> <code>c6m</code> (crate <code>c6-memex</code>) is a fabric node: it is a <code>c6_worker::Worker</code> with an <code>Extension</code> that adds the capability <code>memex</code> and handles <code>memex.*</code> RPCs. The head records a node's role (<code>workers.role</code>, migration 0022) at its first attach, from its Hello, and refuses a later change, a second memex, and sessions on the memex. Nodes call the head with <code>HeadCall</code>/<code>HeadCallReply</code> (hub.proto); <code>fabric::handle</code> allows the memex <code>config.get</code> and <code>notify</code>, and workers the session methods (<code>memex.search/get/related/note/timeline</code>) for one of their own sessions, stamping that session's scope (<code>memex::scope_for</code>: the default kinds plus <code>memex_scopes</code> rules matching its labels) and author before relaying to the memex with <code>registry.call</code>. The head feeds the memex through <code>memex_outbox</code> (in order, retried, dropped after 5 refusals): <code>memex::on_events</code> (from <code>ingest</code>) sends outputs, web pages from <code>web_fetch</code>/<code>browser</code> results, memory changes, and on each top-level turn end a session digest (per turn: asked, tool calls in one line each, the answer; the latest 16 000 characters); <code>memory::put</code>/<code>delete</code> and, once, all earlier notes too. <code>sessions::create</code> asks for <code>memex.brief</code> (labels known at creation plus the prompt; 4 s at most) and puts it in <code>CreateSession.memex_brief</code>; the worker uses it instead of the Memory section, and offers the memex tools when <code>memex_tools</code> (a memex was connected at creation). The memex's store (<code>memex.db</code>): <code>items</code> (unique by source and external id), <code>parts</code> (about 1200-character passages, FTS5 with porter stemming), <code>vectors</code> (unit f32 per part and embedding space), <code>things</code> (keyed by the label they stand for; <code>run:</code>, <code>wfrun:</code> and <code>model:</code> make none), <code>links</code> (<code>about</code>, observed, by source) and <code>evidence</code>. Search merges keyword (bm25, all words else any) and cosine (brute force over the space's vectors) rankings by reciprocal rank (k = 60) per passage, then per item. A job loop refreshes its settings from the head each minute and embeds passages in batches of 32 through the configured connection's <code>/embeddings</code> (credentials as a worker gets them). <code>GET /memex/*</code> serves the UI with no scope.</li>
+<li><strong>Memex documents and papers (step 2).</strong> <code>docs::extract</code> reads PDF (<code>pdf-extract</code>, plus the <code>/Title</code> from the document information), .docx (the runs of <code>word/document.xml</code>), HTML (<code>htmd</code>) and text. <code>docs::analyze</code> takes a PDF as a paper when it has an abstract and a reference list, or a DOI or arXiv id before its references. It takes the title (metadata, else the first line that reads like one), the authors (name-like parts of the lines before the abstract, without affiliation words), and the references (split on <code>[n]</code> or <code>n.</code> markers, else blank lines; each with its DOI, arXiv id, and a title from quotes or the first sentence after the authors). <code>Memex::add_document</code> stores the file in content-addressed <code>blobs/</code> (uploads; folder files are read in place), the item (<code>paper</code> or <code>document</code>; <code>meta.paper</code> holds the identifiers), and links made by <code>docs</code>: <code>is</code> to the paper's own thing (keyed <code>paper:doi:…</code>, <code>paper:arxiv:…</code> or <code>paper:title:…</code>), <code>authored_by</code> to <code>person:name:…</code> things, and <code>cites</code> to the cited papers' things with the reference text as evidence. Thing cards and related things now follow every relation. Watched folders (<code>memex_folders</code> setting, sent in <code>config.get</code>) are scanned every 5 minutes and when they change. The <code>files</code> table (migration 0002) records each file's mtime and size, so only changes are read, and files not seen in a scan are removed. Trails: <code>trails</code> and <code>trail_steps</code>, <code>memex.trail*</code> methods, <code>/memex/trails</code> routes, and the <code>memex_trail</code> tool (sessions may append and read). <code>GET /memex/items/{id}/content</code> serves an original like an output (nosniff, sandboxed when it could run script). Upload bodies may be 80 MB. Errors the memex returns become 400s; losing the connection stays a 500.</li>
+<li><strong>Memex Google (step 3).</strong>
+<ul>
+<li><strong>Head:</strong> <code>google.rs</code> holds your OAuth client (the <code>google_client</code> setting, its secret encrypted) and <code>google_accounts</code> (migration 0023; refresh and access tokens encrypted).
+<ul>
+<li><code>POST /google/connect</code> returns the consent URL (offline access, the gmail.modify, gmail.send, calendar and contacts scopes) with a one-use state. <code>GET /auth/google/callback</code> trades the code and reads the account's address.</li>
+<li><code>sessions::credential</code> serves <code>google:&lt;account&gt;</code> (refreshed on the head) only to the memex node.</li>
+<li><code>config.get</code> lists the accounts, the People API base and <code>contacts_auto</code>.</li>
+<li>Endpoints can be overridden with <code>C6_GOOGLE_*</code> (tests).</li>
+</ul>
+</li>
+<li><strong>Memex mail</strong> (migration 0003):
+<ul>
+<li><code>sync_state</code> per account and kind.</li>
+<li>Gmail: <code>history.list</code> from the cursor each round (a 404 starts the import again), then one page of <code>messages.list</code> (100, <code>includeSpamTrash</code>) while importing. Each message is fetched in raw format, parsed with <code>mail-parser</code>, kept as a blob, and stored as an <code>email</code> item (<code>spam</code> when labelled SPAM, out of sessions' reach) plus a <code>mail</code> row (the label flags) and <code>mail_labels</code>.</li>
+<li>Links <code>from</code>, <code>to</code> and <code>cc</code> go to <code>person:&lt;address&gt;</code> things (<code>google::person</code> adds <code>member_of</code> to <code>org:&lt;domain&gt;</code> except for free-mail domains). <code>thing_keys</code> lets a person have several addresses.</li>
+<li>Views group by thread with their conditions in SQL; <code>needs_reply</code> and <code>waiting</code> check each thread's last message.</li>
+<li><code>modify</code> uses <code>threads.modify</code>. Drafts and sending build MIME with <code>mail-builder</code> (Markdown as HTML via <code>pulldown-cmark</code>, plus In-Reply-To and References). <code>outgoing</code> holds a message until <code>send_at</code> (10 s for undo, or a time you chose) and <code>send_due</code> sends it with <code>messages.send</code>.</li>
+<li>New INBOX mail in the live phase is reported to the head as a <code>mail.received</code> event, which <code>automations::on_memex_event</code> matches against <code>memex</code> triggers (<code>EventFilter</code>: type plus <code>from:</code>/<code>to:</code>/<code>subject:</code>/<code>account:</code> conditions; <code>@domain</code> matches an address's domain).</li>
+</ul>
+</li>
+<li><strong>Memex calendar:</strong>
+<ul>
+<li><code>calendarList</code> and <code>events.list</code> (showDeleted, sync tokens; a 410 starts over) fill <code>calendars</code> and <code>events</code> (masters with <code>recurrence</code>, and instances with <code>recurring_event_id</code>/<code>original_start</code>, cancelled ones kept to hide them) and <code>event</code> items linked to <code>attendee</code> people.</li>
+<li><code>calendar::events</code> expands masters with <code>rrule</code> in their time zone and drops instances that have an exception row.</li>
+<li>Changes: "this" patches the instance id <code>&lt;id&gt;_&lt;UTC start&gt;</code>; "following" sets UNTIL on the master and inserts a new series; "all" patches the master. RSVP patches the attendee list.</li>
+</ul>
+</li>
+<li><strong>Memex contacts:</strong> <code>people.connections.list</code> with a sync token fills <code>contacts</code>, each linked to one person thing keyed by all its addresses. Candidates are people in mail you sent to and heard from, and <code>createContact</code> files them in the <code>carbon6</code> group (made on first use).</li>
+<li><strong>Sessions:</strong>
+<ul>
+<li><code>CreateSession.memex_mail</code> and <code>memex_calendar</code> (scope has email or event) add the mail and calendar tools. <code>mail_thread</code> wraps messages as <code>&lt;email …&gt;</code> and marks them untrusted.</li>
+<li><code>fabric</code> allows these methods for sessions, and the memex refuses them outside the session's scope.</li>
+<li><code>with_builtin_policies</code> puts an <code>ask</code> policy for <code>mail_send</code>, <code>calendar_create</code> and <code>calendar_rsvp</code> ahead of yours unless <code>send_needs_approval</code> is off.</li>
+</ul>
+</li>
+<li><strong>UI:</strong> calls go through <code>POST /memex/rpc</code> (allowlisted prefixes, for you); attachments download from <code>/mail/attachment</code> (nosniff, sandboxed).</li>
+</ul>
+</li>
+<li><strong>Workflows.</strong> The <code>workflows</code> setting (<code>c6_api::Workflow</code> of <code>WorkflowStep</code>s: run/approve/notify, template, input, title, message, <code>when</code> = <code>StepCondition</code> on an earlier step, <code>continue_on_failure</code>; checked on save: templates exist, ids unique, conditions point back, no name shared with a template). <code>workflows::start</code> stores a <code>workflow_runs</code> row (migration 0020) with the definition as it was and the steps' state (<code>WorkflowStepRun</code> JSON), and kicks <code>workflows::Runner</code>, whose dispatcher (one driver per run; unfinished runs are kicked at start) runs <code>drive</code>: the first pending/running/waiting step; <code>when</code> is checked when a step starts (<code>changed</code> compares <code>RESULT:</code> lines with the step's output in the workflow's previous finished run); a run step calls <code>templates::run</code> (labels <code>workflow:&lt;name&gt;</code>, <code>wfrun:&lt;id&gt;</code>) and registers its sessions in <code>run_sessions</code> under <code>wf:&lt;run&gt;:&lt;step&gt;</code>, then polls (1 s, up to 6 h) until <code>automations::session_ended</code> has set all their outcomes, and takes their last replies as output; approve sets the run <code>waiting</code> and sends an <code>approval</code> note whose signed link uses <code>wf:&lt;run&gt;</code> as the session and the step id as the call (the <code>/approve</code> page handles both); <code>decide</code> resumes or ends the run (<code>denied</code>). <code>finish</code> notifies on failure and calls <code>automations::workflow_finished</code>, so an automation whose template names a workflow records the workflow's outcome.</li>
+<li><strong>Browser.</strong> <code>c6_tools::browser</code>: <code>find_chrome</code> (<code>C6_CHROME</code>, the usual macOS apps, then Chrome/Chromium/Brave/Edge on <code>PATH</code>) decides whether <code>build_tools</code> adds <code>BrowserTool</code>. <code>SessionTools.browser</code> (a <code>BrowserSlot</code>) launches Chromium on first use (<code>--headless=new --remote-debugging-port=0 --user-data-dir=&lt;state&gt;/browser/&lt;session&gt;</code>, <code>kill_on_drop</code>), reads <code>DevToolsActivePort</code>, and speaks CDP over one WebSocket (<code>tokio-tungstenite</code>; a writer task and a reader task matching replies to ids; 30 s per call) to one page attached with <code>flatten</code>. <code>read</code> runs a script that numbers visible interactive elements with <code>data-c6-ref</code> and returns <code>innerText</code> (30 000 characters); <code>click</code> scrolls the element into view and dispatches mouse events at its center; <code>type</code> focuses and selects, then <code>Input.insertText</code> (a secret's value from the session's secrets); navigations wait for <code>readyState</code> complete. Outputs are redacted of secrets. Screenshots (<code>Page.captureScreenshot</code>) go to the publisher. A watcher drops the browser after 10 idle minutes; <code>SessionManager::new</code> prunes profiles older than 30 days. The tool is <code>Exclusive</code>.</li>
+<li><strong>Web push.</strong> <code>push.rs</code>: RFC 8291 aes128gcm (one record: ephemeral ECDH P-256 with <code>ring::agreement</code>, HKDF-SHA256 for the CEK and nonce, AES-128-GCM; <code>seal</code> checked against the RFC's Appendix A) and RFC 8292 VAPID (an ES256 JWT for the endpoint's origin, 12 h, <code>sub</code> the https public URL or a placeholder; the P-256 key is made once, kept in the <code>vapid_key</code> setting as PKCS#8). <code>push_subscriptions</code> (migration 0021) holds each device's endpoint (https, or http on loopback for tests), p256dh and auth; <code>POST /push/subscriptions</code> takes <code>PushSubscription.toJSON()</code>. Channel kind <code>push</code> sends <code>{title, body, url, tag}</code> (url: the approval link, else the session) to every device with <code>TTL</code> and <code>Urgency</code>; 404/410 removes the device. The UI ships <code>sw.js</code> (show the notification; on click, focus or open its URL), <code>manifest.webmanifest</code> and icons (Trunk <code>copy-file</code> to the root), and <code>js/push.js</code> (permission, <code>pushManager.subscribe</code> with the head's key).</li>
+<li><strong>Notifications.</strong> The head's <code>channels</code> setting (<code>c6_api::Channel</code>: name, kind ntfy/slack/discord/webhook/email, URL or SMTP server, user, recipient, secret name, events, <code>applies_to</code>, enabled; checked on save) and <code>public_url</code>. <code>notify::Notifier</code> is an unbounded queue in <code>HeadState</code>; one task sends notes in order, loading channels each time and keeping those whose events and labels match. <code>sessions::notify_events</code> (in <code>ingest</code>) makes notes for approval requests, <code>Notice</code> events (<code>SessionEvent</code> kind 26, from the <code>notify</code> tool through a <code>NoticeSink</code> like memory's), outputs, and the end of top-level turns (completed: the last reply, from <code>turn_events</code>; error: the last <code>Error</code>); <code>automations::fire</code> adds one when a run fails. ntfy posts JSON to the server root (topic, title, priority 2/3/5, click, view actions); Slack and Discord get text; webhooks get the note as JSON (with <code>session_url</code>, <code>approve_url</code>, labels); email goes through lettre (465: TLS, else STARTTLS). Approval links are <code>/approve/&lt;b64 session&gt;.&lt;b64 call&gt;.&lt;expiry&gt;.&lt;HMAC-SHA256&gt;</code> with a random key in the <code>link_key</code> setting and a one-hour expiry; <code>GET</code> (public: outside <code>/api/</code>) shows the request from its <code>Approval</code> event and <code>POST allow=1|0</code> calls <code>sessions::decide</code> if the call still waits.</li>
+<li><strong>Automation runs.</strong> Migration 0019: <code>automation_runs</code> (run id, automation, started/finished, trigger, outcome running/ok/failed/stopped, error) and <code>run_sessions</code> (session → run, outcome of its first turn), plus <code>automations.disable_after</code>. <code>automations::fire(…, trigger)</code> records the run (failed at once if nothing started) and its sessions. <code>sessions::ingest</code> calls <code>automations::session_ended</code> on each <code>TurnEnded</code> (completed → ok, error → failed, else stopped; only the first sets it) and <code>on_rejected</code> does for sessions that failed to start; when every session has an outcome the run finishes (failed if any failed or some targets did not start), notifies <code>automation</code> on failure, and <code>after_failure</code> switches the automation off once its last <code>disable_after</code> finished runs all failed. <code>GET /automations/{id}/runs</code> adds each run's sessions and cost (<code>usage::cost_of</code>, subagents and side chats included); <code>Automation.recent</code> has the last ten outcomes.</li>
+<li><strong>Hosts.</strong> The <code>hosts</code> setting (<code>c6_api::Host</code>: name, target, worker, labels, description, <code>check_every</code> minutes, enabled; checked on save, labels as yours). <code>sessions::create</code> resolves an SSH target that is a host's name or target (<code>hosts::lookup</code>) to the target and adds the host's labels. <code>Template.hosts</code> is a selector over each host's labels plus <code>host:&lt;name&gt;</code> (<code>*</code>: all); <code>templates::run</code> makes one target per enabled match, on the host's worker if online (else the template's first), passing the host name as the SSH target. <code>POST /hosts/{name}/check</code> and the 30-second scheduler (<code>hosts::spawn_checks</code>, one check per host at a time) call the worker's <code>ssh.check</code> RPC (<code>SshHost::probe("~")</code> capped at 20 s) and store the result in <code>host_checks</code> (migration 0018); a change in reachability (or a first failure) sends a <code>host</code> note. <code>GET /hosts</code> joins hosts with their last check.</li>
+<li><strong>Usage and budgets.</strong> The <code>usage</code> table (migration 0017: session, seq, ts, connection, model, input, output, cache read/write) gets a row per <code>Usage</code> event in <code>Store::ingest</code>'s transaction (connection and, if the event has none, model from the session row); <code>usage::spawn_backfill</code> fills it once from older events (keyset pages of 2000, setting <code>usage_backfilled</code>). Token counts are as <code>c6-llm</code> normalizes them (input excludes cache reads; output includes reasoning). <code>prices</code> (<code>c6_api::Price</code>; exact id, else the longest <code>prefix*</code>; numbers or numeric strings) give the cost; <code>GET /usage?days&amp;labels</code> aggregates calls since local midnight <code>days-1</code> days ago, filtered by <code>labels::applies</code> on the session's labels, by day, model, connection, label (yours except run:, plus host:, worker:, repo:) and root session. <code>budgets</code> (<code>c6_api::Budget</code>: labels, day/week/month in local time, limit, notify/block) are checked after each batch with usage (<code>usage::after_calls</code>): a budget whose period spend reaches its limit is recorded in <code>budget_state</code> (name → period) so it fires once, sends a <code>budget</code> note and, for block, interrupts running sessions with its labels. <code>sessions::create</code> (on the labels known then) and <code>send_input</code> refuse work while a blocking budget that applies is used up.</li>
+<li><strong>Model routing.</strong> The head's <code>routes</code> setting (<code>c6_api::Route</code>: name, <code>applies_to</code>, connection name or id, model, effort, <code>subagent_model</code>, enabled; checked on save) is read when a session is created. <code>api::CreateSession.connection_id</code> and <code>model</code> may be empty: <code>sessions::route</code> keeps a given model; otherwise it takes the first enabled rule whose labels match the session's labels at creation (yours plus <code>worker:</code>, <code>folder:</code> for an absolute folder and <code>host:</code>; <code>repo:</code> and <code>model:</code> are not known yet) and whose connection is the requested one or unset; then the connection's <code>default_model</code>, then <code>Store::latest_model</code> (the latest top-level session's). Without a connection, the latest session's is used, else the first. The rule's subagent model is stored in <code>sessions.subagent_model</code> (migration 0016; side chats inherit it) and sent as <code>CreateSession.subagent_model</code>; <code>subagent::Runner</code> runs subagents on it (a named agent's model overrides it) and records the model in the child's <code>SessionStarted</code>, which the head uses for the child's row. A selector <code>key:</code> with no value matches any label with that key. Templates send an empty connection and model unless they set them, and <code>c6 run</code> sends what was given.</li>
+<li><strong>API tokens and <code>c6</code>.</strong> <code>api_tokens</code> (migration 0009) holds SHA-256 hashes of <code>c6_…</code> tokens; <code>auth::require</code> accepts <code>Authorization: Bearer</code> for every <code>/api/</code> path except <code>/api/v1/auth/*</code> (so a token cannot mint login codes, tokens or passkeys). Tokens are created under Settings or offline with <code>c6h api-token</code>. <code>bins/c6</code> is a thin client over the HTTP API: <code>run</code> creates a session (picking the only online worker and the latest session's connection and model by default), then follows it by polling <code>/events?after=</code> until the session is idle with nothing queued, mapping the last <code>TurnEnded</code> reason to the exit code; Ctrl-C sends an interrupt.</li>
+<li><strong>Workspace UI.</strong> <code>c6-ui/src/workspace.rs</code>: a <code>Layout</code> of up to four tiles, each a stack of columns (<code>View</code>: sessions, session with an optional search target, search, workers, worker, settings, inbox, mission) with a cursor (the column shown; the one before it shows beside it when the tile is at least 60rem wide, via container queries) and an active column (keyboard shortcuts). <code>Go</code> links open beside the clicked column, truncating the ones after it (⌘-click: new tile). Views are scoped to their column (<code>ColumnCtx</code>): their own scroll (kept while folded), deep links from props rather than the URL, key handlers only in the active column, find-bar highlights per column root. Saved in localStorage; the URL is <code>replaceState</code>d to the focused column and parsed on load. Attention: running → idle/failed while not shown flags a session (cleared when shown, dismissed or replied to); pins; both feed the dock, the inbox and mission control (<code>activity.rs</code>).</li>
+<li><strong>Search.</strong> An FTS5 table (<code>search</code>, trigram tokens, so terms match as case-insensitive substrings of 3+ characters) beside <code>events</code>. Each event becomes entries of a kind (user, assistant, thinking, tool_call with its string arguments unescaped, tool_result, error, summary), capped at 32 KB, inserted in the ingest transaction, so the index cannot drift from the log. It is derived data: when <code>search.version</code> differs, a background task re-indexes each session in one transaction (delete then insert), so concurrent ingest neither loses nor doubles entries. <code>GET /api/v1/search</code> ranks with BM25, groups by session (best three matches each, snippets from <code>highlight()</code> cropped around the first match) and filters by kind and worker. Each hit carries the id of the transcript element showing it (<code>{session}-e{seq}</code>, or <code>call-{id}</code> for tool output, which shows in its call's card) and, for side chats, the top-level session and the chain of side chats to expand. Links are <code>/sessions/{top}?q=…&amp;open={side chats}#{element}</code>: the page expands those side chats as they load, then opens the element, scrolls to it and highlights the terms with the CSS Custom Highlight API. Find in session (<code>GET /api/v1/sessions/{id}/matches?q=</code>) returns every match in the session and its side chats (a recursive query over <code>parent_id</code>/<code>fork_seq</code>) in transcript order: each side chat sorts right after the event it branches from, by creation time; one entry per element.</li>
+<li><strong>Sign-in.</strong> The UI and API require a session (an HttpOnly cookie holding a random token; the head stores its SHA-256, 90 days sliding). Sessions come from passkeys or one-time login links.
+<ul>
+<li><strong>Login links:</strong> <code>c6h login-link</code> writes a token (15 minutes, single use) into the database and prints URLs; the page redeems it with a POST, so link previews cannot use it up. Links are for the first sign-in and for recovery.</li>
+<li><strong>One-time codes:</strong> a signed-in browser creates one (<code>POST /api/v1/auth/codes</code>): 8 Crockford base32 characters (about 10¹² values), shown as <code>XXXX-XXXX</code>, valid for 10 minutes, single use, stored hashed beside login links (<code>kind = 'code'</code>). They are redeemed only at <code>/api/v1/auth/code</code> (never as link tokens), and five wrong codes cancel every outstanding code.</li>
+<li><strong>Passkeys:</strong> discoverable credentials with user verification, no attestation. Registration needs a session and takes the browser's <code>getPublicKey()</code> (SPKI), so the head needs no CBOR; sign-in verifies the assertion with <code>ring</code> (ES256, EdDSA, RS256). The RP id is the host name, so passkeys work on HTTPS names and on <code>localhost</code>, not on IPs.</li>
+<li><strong>HTTPS:</strong> <code>ui_tls_head_ca</code> or <code>ui_tls_cert</code>/<code>ui_tls_key</code>. Publicly trusted certificates (Let's Encrypt, <code>tailscale cert</code>) are not used: Certificate Transparency would publish the head's names. The head CA (<code>pki/ui-ca.*</code>) is separate from the worker CA and carries critical name constraints: the DNS names it was created with and private IP ranges. It issues a 397-day leaf at every start; names added later are left out of the leaf with a warning (delete <code>ui-ca.*</code> and re-trust to extend). Devices fetch it at <code>/ca.pem</code> or <code>/ca.mobileconfig</code> (public, also over plain HTTP). TLS and HTTP share the UI port (first byte 0x16); plain HTTP redirects to the HTTPS name except the CA downloads and the ChatGPT OAuth callback, which must be <code>http://127.0.0.1</code>. Over HTTP/2 the host comes from <code>:authority</code>.</li>
+<li>Public without a session: static assets, <code>/api/v1/auth/{status,link,logout,passkeys/login/*}</code> and the OAuth callback (protected by its <code>state</code>). Workers are unaffected (mTLS).</li>
+</ul>
+</li>
+<li><strong>Chat Completions quirks.</strong> An assistant message with no text and no tool calls is sent with <code>content: ""</code>, because Ollama rejects <code>null</code> there. Reasoning is read from either <code>reasoning_content</code> or <code>reasoning</code>.</li>
+</ul>
+<h2 id="17-open-items-to-settle-during-implementation">17. Open items to settle during implementation</h2>
+<ul>
+<li>Exact Codex and Claude Code tool schemas and descriptions, to mirror per tool profile. Get them from public sources and evals.</li>
+<li>How to render a long-running session with many subagents in the UI.</li>
+<li>Whether the full event payload or a compact form is stored for <code>ToolCall.input_json</code> on very large edits (blob-backed if above N KB).</li>
+<li>Retention policy for blobs and archived sessions.</li>
+</ul>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/architecture.md">docs/architecture.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-system-overview">1. System overview</a></li><li><a href="#2-cargo-workspace">2. Cargo workspace</a></li><li><a href="#3-identity-enrollment-and-transport">3. Identity, enrollment and transport</a></li><li><a href="#4-wire-protocol">4. Wire protocol</a></li><li><a href="#5-session-model-and-event-log">5. Session model and event log</a></li><li><a href="#6-head-internals">6. Head internals</a></li><li><a href="#7-worker-internals">7. Worker internals</a></li><li><a href="#8-llm-layer-c6-llm">8. LLM layer (c6-llm)</a></li><li><a href="#9-agent-loop-c6-agent">9. Agent loop (c6-agent)</a></li><li><a href="#10-tools-c6-tools">10. Tools (c6-tools)</a></li><li><a href="#11-observability">11. Observability</a></li><li><a href="#12-web-ui-c6-ui">12. Web UI (c6-ui)</a></li><li><a href="#13-security-posture-single-user-yolo">13. Security posture (single-user, yolo)</a></li><li><a href="#14-testing-strategy">14. Testing strategy</a></li><li><a href="#15-milestones">15. Milestones</a></li><li><a href="#16-implementation-notes-m1m5">16. Implementation notes (M1–M5)</a></li><li><a href="#17-open-items-to-settle-during-implementation">17. Open items to settle during implementation</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

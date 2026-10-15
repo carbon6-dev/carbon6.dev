@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Memex · carbon6</title><meta name="description" content="A knowledge store for your sessions, documents, mail and photos, searchable by meaning."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/memex/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Memex · carbon6"><meta property="og:description" content="A knowledge store for your sessions, documents, mail and photos, searchable by meaning."><meta property="og:url" content="https://carbon6.dev/docs/memex/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/" aria-current="page">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Memex — Design</h1><div><p>Status: v0.2 (2026-10-11). The whole build order (section 10) is built; the "As built" sections record where it differs. The Google flows and face recognition are tested only against fakes. v0.2 added Google accounts, calendar and contacts, and records the decisions in section 11.</p>
+<blockquote>
+<p>"A memex is a device in which an individual stores all his books, records, and communications, and which is mechanized so that it may be consulted with exceeding speed and flexibility." (Vannevar Bush, <em>As We May Think</em>, 1945)</p>
+</blockquote>
+<h2 id="1-goals">1. Goals</h2>
+<p>The memex is your personal knowledge store, and it holds the context carbon6 works from.</p>
+<ul>
+<li><strong>Everything in one place:</strong>
+<ul>
+<li>20 years of email, and the email you send and receive from now on;</li>
+<li>documents and research papers, with notes;</li>
+<li>photos and videos;</li>
+<li>web pages your agents read;</li>
+<li>carbon6's own sessions, outputs and decisions.</li>
+</ul>
+</li>
+<li><strong>A graph, not just an index:</strong>
+<ul>
+<li>people, organizations, places, topics, projects, events, claims, and the links between them;</li>
+<li>every link has evidence and a time.</li>
+</ul>
+</li>
+<li><strong>Associative trails:</strong> named paths through items and things, with commentary. This is Bush's central idea.</li>
+<li><strong>Context flows both ways:</strong>
+<ul>
+<li>carbon6's work becomes knowledge in the memex;</li>
+<li>the memex supplies context to sessions, and its events start agents.</li>
+</ul>
+</li>
+<li><strong>carbon6 replaces your email client, calendar and address book,</strong> for any number of Google accounts (Gmail and Google Workspace), with the memex as their store and context.</li>
+<li><strong>Media understanding:</strong> faces (named people), places, objects and scenes in photos and videos.</li>
+</ul>
+<p><strong>Not goals:</strong></p>
+<ul>
+<li>multi-user;</li>
+<li>sharing;</li>
+<li>encryption at rest: that's left to the disks (FileVault, LUKS, an encrypted NAS volume).</li>
+</ul>
+<h2 id="2-architecture">2. Architecture</h2>
+<pre><code>                         c6 fabric (mTLS, private network / tailnet)
+   browser ──HTTP/WS──► c6h (head) ◄────────────── c6w workers (sessions, tools)
+                          ▲  │ relays memex calls      ▲
+                          │  │ (workers → head → c6m)  │ compute jobs
+                          │  ▼                         │ (optional)
+                        c6m (memex service) ───────────┘
+                          │  store: SQLite (meta, graph, full text) + vector index + blobs
+                          │  sources: IMAP/Gmail/JMAP, folders on itself or workers, uploads
+                          └─ model calls: through c6 connections (your choice per task)
+</code></pre>
+<h3 id="21-a-separate-service-on-the-fabric">2.1 A separate service on the fabric</h3>
+<ul>
+<li><strong><code>c6m</code></strong> is a new binary and a new crate, <code>c6-memex</code>. It runs anywhere: the head's machine, a home server or a NAS. It can be placed wherever the disk and the GPU are.
+<ul>
+<li>It starts on the same Mac as the head, but nothing may assume that. It reaches the head only over the fabric, has its own data directory, refers to media by location (<code>worker:&lt;name&gt;:&lt;path&gt;</code> or <code>memex:&lt;path&gt;</code>), and reaches models through carbon6 connections. Moving it to another machine is a re-enrollment plus copying its data directory.</li>
+</ul>
+</li>
+<li><strong>It joins the fabric the way workers do:</strong>
+<ul>
+<li>it enrolls with a token from the head (Settings → Memex → "Connect a memex");</li>
+<li>it receives a client certificate from the head's CA, with the role <code>memex</code> in its subject;</li>
+<li>it dials the head and keeps one HTTP/2 stream open. The head never dials it, so it works behind NAT.</li>
+<li>Exactly one memex is attached per head; this can be relaxed later.</li>
+</ul>
+</li>
+<li><strong>Reaching the memex:</strong>
+<ul>
+<li>the head calls it over that stream with request/response RPCs (the existing <code>RpcRequest</code>/<code>RpcResponse</code> frames, under the method namespace <code>memex.*</code>);</li>
+<li>workers reach it through the head (worker → head → memex), with the session's scope stamped on by the head (see 2.3). A direct worker-to-memex path can come later, as an optimization.</li>
+</ul>
+</li>
+<li><strong>The memex reaches the head</strong> over the same stream, through a small, explicit API (2.4), so it can start agents and use carbon6's connections, secrets and notifications.</li>
+</ul>
+<h3 id="22-the-memex-api">2.2 The memex API</h3>
+<p>The API is JSON over the fabric. Each method is also exposed by the head under <code>/api/v1/memex/…</code> for the UI and <code>c6</code>, with the head checking sign-in.</p>
+<table><thead><tr><th>Area</th><th>Methods</th></tr></thead><tbody>
+<tr><td>Items</td><td><code>ingest</code> (any type, by MIME type and its handler: 4.5), <code>types</code> (the handlers and their attribute schemas), <code>items.get</code>, <code>items.content</code> (raw bytes, such as the original email or the full image), <code>items.delete</code> (with what derives from it)</td></tr>
+<tr><td>Search</td><td><code>search</code> (hybrid: keyword, meaning, graph filters, time; results grouped by kind), <code>similar</code> (more like this item)</td></tr>
+<tr><td>Graph</td><td><code>entity.get</code> (a card: facts, aliases, timeline), <code>entity.neighbors</code>, <code>entity.merge</code>, <code>entity.split</code>, <code>link.add</code>, <code>link.retract</code>, <code>timeline</code></td></tr>
+<tr><td>Writing</td><td><code>notes.put</code> (an insight or a note), <code>trails.*</code> (create, append a step, comment, list)</td></tr>
+<tr><td>Context</td><td><code>context.brief</code> (labels plus optional text → a token-budgeted brief with sources), <code>mention.complete</code> (for @-mentions)</td></tr>
+<tr><td>Mail</td><td><code>mail.accounts.*</code>, <code>mail.list</code> (views: inbox, needs reply, waiting, a label or folder), <code>mail.thread</code>, <code>mail.flags</code> (read, star, archive, label, trash), <code>mail.draft.*</code>, <code>mail.send</code>, <code>mail.rules.*</code></td></tr>
+<tr><td>Sources</td><td><code>sources.*</code> (add, configure, pause, re-scan), <code>jobs.status</code> (pipeline progress and backlog)</td></tr>
+<tr><td>Review</td><td><code>review.list</code> (merge suggestions, low-confidence links, unnamed face clusters), <code>review.decide</code></td></tr>
+<tr><td>Events</td><td><code>events.subscribe</code> (the head subscribes once and forwards to automations and the UI)</td></tr>
+</tbody></table>
+<h3 id="23-scopes-what-each-caller-may-see">2.3 Scopes: what each caller may see</h3>
+<p>The memex holds more sensitive data than anything else in carbon6, so every call carries a <strong>scope</strong>:</p>
+<ul>
+<li>
+<p><strong>The UI (you):</strong> sees everything.</p>
+</li>
+<li>
+<p><strong>An agent session:</strong> sees what its labels allow. The head works this out from the <code>memex_scopes</code> setting: rules of the form <em>labels → allowed sources and topics</em>, edited in Settings like policies. For example:</p>
+<ul>
+<li><code>email:</code> only for sessions labelled <code>mail</code>;</li>
+<li>research papers for every session;</li>
+<li>a client's material for <code>client:acme</code>.</li>
+</ul>
+<p>The head stamps the scope on each relayed call, and the memex enforces it in every query. A worker can't widen it.</p>
+</li>
+<li>
+<p><strong>Automations and workflows:</strong> get the scope of the sessions they start, decided by those sessions' labels.</p>
+</li>
+</ul>
+<h3 id="24-what-the-memex-may-do-on-the-head">2.4 What the memex may do on the head</h3>
+<p>The memex's certificate authorizes only these actions:</p>
+<ul>
+<li><code>workflows.start(name, input)</code> and <code>templates.run(name, input, labels)</code>: for memex event triggers, such as "new mail from a key contact → triage";</li>
+<li><code>notify(event, title, message, labels)</code>;</li>
+<li><code>credentials.get(connection or secret)</code>: short-lived credentials for model calls and mail servers. This is the same broker workers use, with secrets scoped by the labels <code>memex</code> and <code>source:&lt;kind&gt;</code>;</li>
+<li><code>sessions.digest(since)</code>: carbon6's own events, for its ingestion (3.1).</li>
+</ul>
+<p>It can't run shell commands, change settings, or create sessions outside templates and workflows.</p>
+<h2 id="3-context-flowing-both-ways">3. Context flowing both ways</h2>
+<h3 id="31-carbon6--memex-work-becomes-knowledge">3.1 carbon6 → memex: work becomes knowledge</h3>
+<ul>
+<li><strong>Session digests.</strong> When a top-level session's turn ends, the head queues a digest job:
+<ul>
+<li>the memex reads the session's events and writes a digest item: what was asked, what was decided and found, what was produced, which files, hosts and repos were involved;</li>
+<li>it links the digest to the things involved, through the session's labels and the names mentioned;</li>
+<li>the transcript stays in carbon6, and the digest links to it.</li>
+</ul>
+</li>
+<li><strong>Outputs:</strong> published files become items, linked to their session.</li>
+<li><strong>Web pages</strong> read by the browser tool or web fetch become web items: URL, title, text and when they were read.</li>
+<li><strong>Memory notes</strong> become notes on things. <code>remember</code> and <code>forget</code> keep their meaning, and the head's <code>memories</code> table migrates into the memex once one is attached.</li>
+<li><strong>Decisions:</strong> approvals, denials and workflow results become events linked to the policy, the host and the session.</li>
+<li><strong>Deliberate writes:</strong> agents call <code>notes.put</code> and <code>trails.*</code>; every write is attributed to the session that made it.</li>
+</ul>
+<h3 id="32-memex--carbon6-knowledge-becomes-context">3.2 memex → carbon6: knowledge becomes context</h3>
+<ul>
+<li><strong>Labels resolve to things.</strong> <code>client:acme</code> → the Acme organization, <code>host:web1</code> → that machine, <code>repo:…</code> → the project. People are linked to labels by <code>person:&lt;id&gt;</code>, with aliases resolved.</li>
+<li><strong>Context brief at session start.</strong> The worker asks for <code>context.brief</code> with the session's labels (and its first message) and puts the result in the system prompt, under its own budget (about 4 KB by default, adjustable). It covers key facts, open commitments, recent events, relevant insights and trails, each with a reference. This replaces today's Memory section.</li>
+<li><strong>@-mentions:</strong> <code>@</code> completes people, organizations, projects, threads, papers and photos (through <code>mention.complete</code>), and attaches their cards to the message.</li>
+<li><strong>Agent tools,</strong> within the session's scope:
+<ul>
+<li><code>memex_search</code> (hybrid);</li>
+<li><code>memex_get</code> (an item or a thing with its neighborhood);</li>
+<li><code>memex_related</code> (follow links);</li>
+<li><code>memex_timeline</code>;</li>
+<li><code>memex_note</code> (save an insight or a link);</li>
+<li><code>memex_trail</code> (add a step).</li>
+</ul>
+</li>
+<li><strong>Event triggers:</strong> a new trigger type for automations, <em>memex event</em>, with filters such as:
+<ul>
+<li><code>mail.received</code> (from, to, labels, rules);</li>
+<li><code>commitment.due</code>;</li>
+<li><code>item.added</code> (source, topic);</li>
+<li><code>entity.changed</code>.</li>
+</ul>
+</li>
+<li><strong>Inbox:</strong> mail that needs a reply and commitments due appear in carbon6's inbox next to sessions waiting for you.</li>
+<li><strong>Pages link both ways:</strong> a thing's page lists the sessions, workflows and outputs about it, and a session lists the things it touched.</li>
+</ul>
+<h3 id="33-keeping-the-loop-honest">3.3 Keeping the loop honest</h3>
+<ul>
+<li><strong>Two kinds of claims:</strong>
+<ul>
+<li><strong>observed:</strong> from structure (headers, metadata), from you, or from a source document's own text, with the passage cited;</li>
+<li><strong>inferred:</strong> model extractions, agent insights, guesses at identity.</li>
+</ul>
+</li>
+<li><strong>Inferred claims never count as evidence for further inferences</strong> until they're confirmed, either by you or by observed support.</li>
+<li><strong>Every claim carries:</strong>
+<ul>
+<li>its evidence: items and passages;</li>
+<li>who or what made it: you, a pipeline and its version, or a session;</li>
+<li>how confident it is;</li>
+<li>when it held: from and until.</li>
+</ul>
+</li>
+<li><strong>Briefs show their sources.</strong> Correcting a claim, in a brief, on a thing's page or in the review queue, records an observed correction that outranks the inferences.</li>
+<li><strong>Re-running a pipeline</strong> with a better model replaces that pipeline's inferred claims and leaves observed ones alone.</li>
+</ul>
+<h2 id="4-data-model">4. Data model</h2>
+<h3 id="41-items-what-goes-in">4.1 Items: what goes in</h3>
+<pre><code>item(id, kind, source_id, external_id, content_hash, blob_ref | location_ref,
+     title, created_at /* when it happened */, added_at /* when it entered */,
+     meta JSON, deleted_at)
+kinds: email, attachment, document, paper, note, photo, video, audio, web,
+       session_digest, output, event
+</code></pre>
+<ul>
+<li><code>location_ref</code> points to media where it already lives: <code>worker:&lt;name&gt;:&lt;path&gt;</code>, or a path on the memex host. The memex never copies terabytes; it stores thumbnails, keyframes and derived content.</li>
+<li><code>blob_ref</code> is the content-addressed store for what has no other home: email (the raw RFC 822 message), uploads and attachments.</li>
+</ul>
+<h3 id="42-derived-content-rebuildable">4.2 Derived content: rebuildable</h3>
+<pre><code>part(item_id, ordinal, kind /* section, passage, ocr, caption, transcript_segment, frame */,
+     text, start/end (offsets, page, or time in media), pipeline, version)
+vector(part_id | item_id | face_id, space /* the embedding model */, dims, data)
+face(item_id, box, frame_time, embedding, cluster_id, person_entity_id?)
+object(item_id, label, score, box, frame_time)
+place(item_id, lat, lon, accuracy, geocode JSON)
+</code></pre>
+<h3 id="43-the-graph">4.3 The graph</h3>
+<pre><code>entity(id, kind /* person, org, place, topic, project, event, claim, host, repo, label… */,
+       name, aliases JSON, attrs JSON, merged_into)
+link(id, src_entity, rel, dst_entity | dst_item, valid_from, valid_to,
+     confidence, basis /* observed | inferred */, made_by /* you | pipeline@version | session */)
+evidence(link_id, item_id, part_id?, quote?)
+note(id, body, made_by, created_at)  -- insights; linked like anything else
+trail(id, name, description) ; trail_step(trail_id, ordinal, target, comment)
+</code></pre>
+<ul>
+<li><strong>Relations</strong> are an open vocabulary with a core set:
+<ul>
+<li>people and organizations: <code>sent</code>, <code>received</code>, <code>cc</code>, <code>member_of</code>, <code>works_at</code>, <code>knows</code>;</li>
+<li>content: <code>about</code>, <code>mentions</code>, <code>authored</code>, <code>cites</code>;</li>
+<li>media and events: <code>appears_in</code>, <code>located_at</code>, <code>attended</code>;</li>
+<li>work: <code>decided</code>, <code>committed_to</code>;</li>
+<li>claims: <code>contradicts</code>, <code>supports</code>;</li>
+<li>structure: <code>part_of</code>.</li>
+</ul>
+</li>
+<li><strong>Every link is backed by at least one evidence row</strong> or made by you.</li>
+<li><strong>Identity:</strong>
+<ul>
+<li>people resolve by email address, name variants, signature blocks and co-occurrence;</li>
+<li>faces join people when you name a face cluster, or by a confident match to a named one;</li>
+<li>automatic merges happen only above a high threshold, and the rest go to the review queue;</li>
+<li>a merge keeps aliases and can be undone (<code>split</code>).</li>
+</ul>
+</li>
+</ul>
+<h3 id="44-storage">4.4 Storage</h3>
+<ul>
+<li><strong>SQLite (WAL)</strong> for items, parts, the graph, mail state and jobs. Full-text search uses FTS5 with trigram and word tokenizers, as the head already does.</li>
+<li><strong>A vector index per embedding space:</strong> an in-process approximate index (HNSW) in Rust, with the vectors also in SQLite so the index can be rebuilt. Sized for millions of vectors on one machine.</li>
+<li><strong>Blobs</strong> in a content-addressed directory (<code>blobs/ab/cdef…</code>).</li>
+<li><strong>The graph</strong> is queried with recursive SQL from Rust; there's no separate graph database to operate.</li>
+<li><strong>Encryption at rest</strong> is the storage layer's job (per your decision).</li>
+<li><strong>Backup:</strong> the SQLite file and the blob directory. All derived content can be rebuilt.</li>
+</ul>
+<h3 id="45-getting-data-in-one-ingest-api-typed-by-handlers">4.5 Getting data in: one ingest API, typed by handlers</h3>
+<p><strong>The problem.</strong> Ingest has grown one path per kind of data: document upload, folder scan, notes, an internal generic ingest the head uses for sessions and memory, and Gmail sync. Each new source (an mbox archive, Takeout, a scanner, a feed) would add another API. Making the API general must not cost any guarantee that a dedicated API gives.</p>
+<p><strong>The rule.</strong> Getting data in is general, and what the data means stays specialized:</p>
+<ul>
+<li><strong>One way in:</strong> a single ingest call, one envelope, one set of retry and result semantics.</li>
+<li><strong>The type is the item's MIME type:</strong> <code>message/rfc822</code>, <code>application/pdf</code>, <code>text/html</code>, <code>image/jpeg</code>, <code>text/calendar</code>, <code>text/vcard</code>, and so on. Standard formats are already self-describing, so the memex invents no type system. An email is "a specialized document" at the format level already.</li>
+<li><strong>Meaning stays in handlers:</strong> each registered handler keeps its own parsing, identity, storage tables and derived structure (threads, people, faces, papers).</li>
+<li><strong>No common data model:</strong> forcing email into <code>{title, body, author, date}</code> would lose recipients, threads, Message-ID, labels and flags, which is exactly the watering-down to avoid. What every handler shares is the base item (4.1: title, searchable text, when it happened, links to things), which feeds search and briefs. Each handler then adds its own records beside it, so the base item plus extension is how "email is a document" shows up in storage.</li>
+</ul>
+<h4 id="the-ingest-call">The ingest call</h4>
+<p><code>memex.ingest</code>, public through <code>/api/v1/memex/rpc</code> (signed in, or with an API token):</p>
+<pre><code class="language-json">{"items": [{
+  "type": "message/rfc822",
+  "data": "&lt;base64 of the bytes&gt;",
+  "source": {"kind": "mbox", "id": "archive-2009"},
+  "external_id": "Work.mbox#88123",
+  "attributes": {"folder": "Work/2009", "read": true, "starred": false},
+  "labels": ["personal"]
+}]}
+</code></pre>
+<table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>type</code></td><td>The MIME type; it picks the handler.</td></tr>
+<tr><td><code>data</code></td><td>The item's bytes in its standard format, base64. Text types may pass <code>text</code> instead.</td></tr>
+<tr><td><code>source</code></td><td>Where it comes from. Items are unique by source and <code>external_id</code> (the <code>items</code> table already enforces this).</td></tr>
+<tr><td><code>external_id</code></td><td>The source's own id for the item, so re-sending is harmless.</td></tr>
+<tr><td><code>attributes</code></td><td>Facts that aren't inside the bytes: a folder, flags, a received date, a page URL. Checked against the handler's schema.</td></tr>
+<tr><td><code>labels</code></td><td>Which sessions may see it (2.3), checked as uploads are checked today.</td></tr>
+</tbody></table>
+<p>The reply has one result per item: <code>created</code> with its id, <code>updated</code> (the same source and id with new content; documents only, since a message never changes), <code>duplicate</code> with the existing id, or <code>rejected</code> with the handler's reason (for example "not an RFC 822 message: no headers"). A batch never fails as a whole because of one item.</p>
+<h4 id="the-type-registry">The type registry</h4>
+<p><code>memex.types</code> lists the handlers. Each one declares:</p>
+<ul>
+<li><strong>Types:</strong> the MIME types it accepts.</li>
+<li><strong>Attribute schema:</strong> a JSON Schema with strict keys. Unknown keys and wrong types are rejected, so attributes are typed per handler, not a free-form bag.</li>
+<li><strong>Identity rule:</strong> how it recognizes an item it already has. Mail uses Message-ID (or, without one, a hash of key headers and the body); documents the content hash; papers DOI or arXiv id, then content hash; photos the content hash.</li>
+<li><strong>Limit:</strong> the largest item it takes.</li>
+<li><strong>Produces:</strong> the item kinds it creates (an email produces <code>email</code> plus <code>attachment</code> items).</li>
+</ul>
+<p>Importers read the registry, so a new source needs no new API, only a client.</p>
+<h4 id="guarantees-and-how-each-is-kept">Guarantees, and how each is kept</h4>
+<table><thead><tr><th>Guarantee</th><th>A dedicated API gives it by</th><th>The ingest API keeps it by</th></tr></thead><tbody>
+<tr><td>Valid input</td><td>its request schema</td><td>the handler parsing the standard format (a stricter contract than a bespoke JSON shape), plus the strict attribute schema</td></tr>
+<tr><td>Right identity and dedup</td><td>its own code</td><td>the handler's identity rule, plus source and <code>external_id</code> for retries</td></tr>
+<tr><td>Specialized structure</td><td>its own tables</td><td>handlers keep their own tables (<code>mail</code>, <code>mail_labels</code>, media, papers)</td></tr>
+<tr><td>Limits per type</td><td>its own limit</td><td>declared per handler and enforced before parsing</td></tr>
+<tr><td>Two-way sync is never faked</td><td>only sync code writes mail</td><td><strong>origin is set by the server.</strong> Every ingested item is <code>imported</code> and read-only. Only built-in connectors create <code>mirrored</code> items, the ones whose changes are written back. The ingest API cannot create a mirrored item.</td></tr>
+<tr><td>Privacy</td><td>its own rules</td><td>the handler classifies (spam, mailing lists; spam never reaches agents), and labels are checked as today</td></tr>
+<tr><td>Clear errors</td><td>its own messages</td><td>the per-item <code>rejected</code> reason</td></tr>
+</tbody></table>
+<h4 id="mail-the-first-handler">Mail, the first handler</h4>
+<ul>
+<li><code>message/rfc822</code> → the parsing that <code>mail::store_message</code> does today, without requiring a Gmail account.</li>
+<li><strong>Accounts and threads:</strong> an imported message belongs to its source (for example <code>mbox:archive-2009</code>) instead of a Gmail account. It is threaded by <code>References</code> and <code>In-Reply-To</code>, since it has no Gmail thread id.</li>
+<li><strong>Labels and flags:</strong> attributes <code>folder</code> (a label), <code>read</code>, <code>starred</code>, and <code>received</code> (a fallback date).</li>
+<li><strong>Imported and mirrored copies of the same message:</strong>
+<ul>
+<li>Imported mail that Gmail sync already has is a duplicate; the mirrored copy wins.</li>
+<li>If Gmail sync brings in a message that was imported earlier, the item is upgraded to mirrored and keeps its id, so links and notes made meanwhile survive.</li>
+</ul>
+</li>
+</ul>
+<h4 id="what-stays-separate">What stays separate</h4>
+<ul>
+<li><strong>Connectors</strong> (Gmail, Calendar, Contacts sync) pull on a schedule, keep cursors and write back, so they are not uploads. Internally they call the same handlers with origin <code>mirrored</code>, so synced and imported mail share one code path.</li>
+<li><strong>Actions</strong> (send, RSVP, edit a contact, label a thread) are not data coming in. Each means something different, so they keep their own methods.</li>
+<li><strong>Containers</strong> (mbox, Maildir, zip, Takeout) are split by the importer, on its side, into single items. Multi-gigabyte files don't belong in one request, and the importer can keep its own position to resume. A server-side splitter for small <code>application/mbox</code> uploads may come later as a convenience.</li>
+</ul>
+<h4 id="what-it-replaces">What it replaces</h4>
+<ul>
+<li><strong><code>memex.upload</code></strong> goes through the document handler, so a file already in the memex is that item. The head's <code>/api/v1/memex/upload</code> stays as the UI's wrapper.</li>
+<li><strong>Folder scan</strong> keeps its own walk and change tracking, and stores each file with the same code the document handler uses.</li>
+<li><strong>Ingested sources</strong> are always <code>import:&lt;kind&gt;[:&lt;id&gt;]</code>, so a client can never write into a connector's source (<code>gmail:…</code>) or the head's.</li>
+</ul>
+<h4 id="as-built-2026-10-13">As built (2026-10-13)</h4>
+<ul>
+<li><strong>Handlers:</strong> mail (<code>message/rfc822</code>) and documents (PDF, Word, Markdown, plain text, HTML, reStructuredText). Photos and videos still come in only from watched folders, because the memex keeps media where it lives instead of copying it.</li>
+<li><strong>Imported mail:</strong>
+<ul>
+<li>It belongs to a mail account named after its source (<code>import:mbox:archive</code>) and shows in the mail views and label views. Its folder is a label.</li>
+<li>Flags: <code>read</code> defaults to true. A folder named Spam or Junk marks the message spam, so it stays out of agents' context.</li>
+<li>Labels and read state change only in the memex: there is no Gmail to tell. A reply from an imported thread fails with "no Google account", because there is no account to send it from.</li>
+<li>It never fires new-mail automations, since it's archive mail.</li>
+<li>When Gmail sync later brings in the same Message-ID, the item becomes the synced one and keeps its id.</li>
+</ul>
+</li>
+<li><strong>Kept as they were:</strong>
+<ul>
+<li><strong>Notes</strong> stay <code>memex.note</code>, because notes carry who made them and appear in trails.</li>
+<li><strong>The head's own items</strong> (session digests, outputs, memory) still send the older single-item form of <code>memex.ingest</code>, which its outbox may hold across upgrades. The head's gateway accepts only typed batches from outside, so a token cannot use that form.</li>
+</ul>
+</li>
+<li><strong>Through the head:</strong> <code>memex.ingest</code> and <code>memex.types</code> are callable on <code>POST /api/v1/memex/rpc</code> with an API token, are listed in the operation catalog, and are therefore in the API reference agents get (<code>carbon6_api</code>) and in <code>/api/v1/openapi.json</code>. A request is up to 40 MB, and a message up to 25 MB.</li>
+</ul>
+<h2 id="5-pipelines">5. Pipelines</h2>
+<p>Jobs live in a durable queue in the memex database, each with a priority, a budget and a version. They run in tiers:</p>
+<table><thead><tr><th>Tier</th><th>What</th><th>Cost</th></tr></thead><tbody>
+<tr><td>0. Structure</td><td>parsing: email headers and threads (Message-ID, References, In-Reply-To), people and organizations from addresses and domains, file metadata, EXIF time, GPS and camera, PDF metadata, references, video duration</td><td>no models; the whole archive in hours</td></tr>
+<tr><td>1. Text and search</td><td>text extraction (HTML → text, PDF text, OCR for scans), chunking into passages, embeddings</td><td>one embedding per passage</td></tr>
+<tr><td>2. Understanding</td><td>per thread: summary, topics, commitments, entities; per paper: claims, findings, methods, limitations, the citation graph; per photo: caption, objects, scene, faces; per video: transcript, keyframes, faces</td><td>model calls, prioritized</td></tr>
+<tr><td>3. Synthesis</td><td>topic summaries, timelines, relationship summaries, contradictions across papers, "what changed" digests</td><td>on demand or scheduled</td></tr>
+</tbody></table>
+<ul>
+<li>
+<p><strong>Priority:</strong></p>
+<ul>
+<li>what you or an agent just touched;</li>
+<li>new arrivals (live mail);</li>
+<li>things you've marked as important;</li>
+<li>then recent before old.</li>
+</ul>
+</li>
+<li>
+<p>Tier 2 for the 20-year archive fills in gradually in the background, under a budget (Settings → Memex → Budgets, using phase 4's budgets with the label <code>memex</code>).</p>
+</li>
+<li>
+<p><strong>Models are your choice per task</strong> (Settings → Memex → Models). Each task picks a carbon6 connection and model, or a built-in local model:</p>
+<table><thead><tr><th>Task</th><th>Default suggestion</th></tr></thead><tbody>
+<tr><td>Embeddings (text)</td><td>a local embedding model through Ollama</td></tr>
+<tr><td>Embeddings (images, for search by description)</td><td>a CLIP-style model</td></tr>
+<tr><td>Extraction and summarization</td><td>any chat model</td></tr>
+<tr><td>Image captions and scenes</td><td>a vision model</td></tr>
+<tr><td>Faces: detection and embeddings</td><td>a built-in ONNX model</td></tr>
+<tr><td>Objects</td><td>a built-in ONNX model, or the vision model</td></tr>
+<tr><td>Transcription</td><td>Whisper, local</td></tr>
+<tr><td>Reverse geocoding</td><td>an offline place dataset, local</td></tr>
+</tbody></table>
+<ul>
+<li>A routing rule can force a source onto particular models, for example <code>source:email</code> → local only.</li>
+<li>Built-in ONNX models run in <code>c6m</code> on its CPU or GPU, or on a worker that advertises the capability <code>memex-compute</code>, for media too large to move.</li>
+</ul>
+</li>
+<li>
+<p><strong>Versioning:</strong> each derived row and inferred link records the pipeline and model version. Upgrading a task's model re-queues its tier for the affected items.</p>
+</li>
+</ul>
+<h3 id="51-understanding-as-built-step-4">5.1 Understanding, as built (step 4)</h3>
+<ul>
+<li><strong>Settings → Memex</strong> picks a connection and model for three tasks: understanding, vision and transcription. A fourth setting, "model calls a day", is one budget shared by understanding and vision (default 500). The memex calls the model directly with a credential from the head; Claude Code connections can't be used for these tasks.</li>
+<li><strong>What gets read</strong>, newest first:
+<ul>
+<li>email threads, as one unit, and again when a thread has new mail; mailing lists, spam, trash and drafts are skipped;</li>
+<li>sessions, documents, papers and web pages.</li>
+</ul>
+</li>
+<li><strong>What comes back</strong>, as JSON:
+<ul>
+<li>a summary (<code>items.summary</code>);</li>
+<li>topics (<code>topic:&lt;slug&gt;</code> things, linked <code>about</code>);</li>
+<li>for threads and sessions, commitments: who, what, and by when;</li>
+<li>for papers, claims: <code>claim:&lt;hash&gt;</code> things linked as <code>claims</code>, <code>uses_method</code> or <code>has_limitation</code>, with the sentence kept as evidence.</li>
+</ul>
+</li>
+<li><strong>Everything is inferred:</strong> <code>basis = inferred</code>, <code>made_by = understand-v1@&lt;model&gt;</code>.
+<ul>
+<li>Changing the model re-reads everything and replaces the old model's links.</li>
+<li>Commitments you marked done or dropped are kept.</li>
+</ul>
+</li>
+<li><strong>Inputs are observed items only.</strong>
+<ul>
+<li>A model never reads another model's output.</li>
+<li>"Summarize what I know" about a thing reads the items about it, then saves a note marked inferred, listing its sources.</li>
+</ul>
+</li>
+<li><strong>Review queue:</strong>
+<ul>
+<li>People with the same full name, such as a paper's author and someone you write to, are suggested as merges.</li>
+<li>Merging moves links, keys and trail steps, keeps the old name as an alias, and deletes the duplicate.</li>
+<li>The old key still finds the merged person.</li>
+<li>Nothing is merged automatically.</li>
+</ul>
+</li>
+<li><strong>Graph and timeline:</strong>
+<ul>
+<li><code>memex.graph</code> returns a thing's neighbours (things it shares items with, and things it links to directly) and the links among them. The UI draws it radially; closer and larger means more in common.</li>
+<li><code>memex.months</code> returns items per month, for the timeline.</li>
+<li>Both are on every thing's page, under the Memex page's Review and Commitments tabs.</li>
+</ul>
+</li>
+</ul>
+<h2 id="6-mail-calendar-and-contacts">6. Mail, calendar and contacts</h2>
+<p>carbon6 replaces the mail client, the calendar and the address book, starting with Google: any number of Gmail and Google Workspace accounts. The provider layer is an interface, so IMAP/SMTP, JMAP, CalDAV and CardDAV can be added later without changing the rest.</p>
+<h3 id="61-google-accounts">6.1 Google accounts</h3>
+<ul>
+<li><strong>Adding an account:</strong> Settings → Mail &amp; calendar → Add Google account. This is OAuth through the head's existing broker (the same one used for ChatGPT sign-in), with the tokens stored encrypted on the head. The memex gets short-lived access tokens over the fabric (2.4) and never holds the refresh token.</li>
+<li><strong>One-time setup:</strong> Google requires an OAuth client from a Google Cloud project you own. carbon6 shows the steps:
+<ul>
+<li>enable the Gmail, Calendar and People APIs;</li>
+<li>create a Web client with carbon6's redirect address, and paste in its client ID and secret, which are kept as secrets.</li>
+<li><strong>Personal Gmail:</strong> set the app to "In production". In "Testing", Google expires refresh tokens after 7 days. You'll see Google's "unverified app" notice once, which is expected for an app you made for yourself.</li>
+<li><strong>Workspace:</strong> an "Internal" app avoids both issues.</li>
+</ul>
+</li>
+<li><strong>Scopes:</strong>
+<ul>
+<li><code>gmail.modify</code> (read, label, archive, drafts; no permanent deletion);</li>
+<li><code>gmail.send</code>;</li>
+<li><code>calendar</code> (calendars and events);</li>
+<li><code>contacts</code> (read and write).</li>
+</ul>
+</li>
+</ul>
+<h3 id="62-mail-sync">6.2 Mail sync</h3>
+<ul>
+<li><strong>Through the Gmail API:</strong>
+<ul>
+<li>history import of every message (<code>messages.list</code> and <code>get</code> in raw format, rate-limited and resumable; 20 years can take a day or more and fills in newest first);</li>
+<li>then incremental sync with <code>history.list</code> from the last history ID. Push through Pub/Sub would need a public endpoint, so the memex polls, every 30 seconds while the UI is open and every 2 minutes otherwise.</li>
+</ul>
+</li>
+<li><strong>Gmail stays the source of truth.</strong> Changes sync both ways: labels (including Inbox, Starred, Important, Spam and Trash), read state, archive, and drafts.</li>
+<li><strong>No exclusions:</strong> everything is brought in, including Spam and Trash. Spam is marked as such and never reaches agents' context.</li>
+<li><strong>Multiple accounts</strong> appear in one unified inbox or one at a time. Replies default to the account and address the thread came to.</li>
+<li><strong>Archives no longer on Gmail</strong> can be imported from mbox, Maildir or Google Takeout files. They're marked as imported, not synced, and deduplicated against synced mail by Message-ID.
+<ul>
+<li>carbon6 ships no importer for these. Any tool can send messages through <code>memex.ingest</code> (4.5), splitting the archive on its side.</li>
+</ul>
+</li>
+</ul>
+<h3 id="63-the-mail-client-in-carbon6s-ui">6.3 The mail client, in carbon6's UI</h3>
+<ul>
+<li><strong>Views:</strong> Inbox, Needs reply, Waiting on others, Starred, Sent, Drafts, Archive, per label, and Search.</li>
+<li><strong>Threads</strong> are shown as conversations.</li>
+<li><strong>Reading:</strong>
+<ul>
+<li>HTML mail is shown in a sandboxed iframe (no scripts, an opaque origin);</li>
+<li>remote images are blocked until you allow them per sender, so tracking pixels don't load;</li>
+<li>attachments are previewed the way Outputs are.</li>
+</ul>
+</li>
+<li><strong>Composing:</strong> Markdown or plain text, sent as multipart (text and HTML). Includes:
+<ul>
+<li>signatures, per account;</li>
+<li>attachments from files, Outputs or the memex;</li>
+<li>undo send (a short hold), send later, and reminders to follow up.</li>
+</ul>
+</li>
+<li><strong>Rules:</strong> filters on sender, recipient, subject and content (or an agent's classification) that apply labels, archive, set priority, or start a workflow. Gmail's own filters keep working on Gmail's side.</li>
+<li><strong>Keyboard first</strong> on desktop, and a phone layout (phase 5's work applies).</li>
+</ul>
+<h3 id="64-calendar">6.4 Calendar</h3>
+<ul>
+<li><strong>Google Calendar API sync:</strong>
+<ul>
+<li>every calendar you own or subscribe to, per account;</li>
+<li>events, recurrences (with exceptions), attendees and responses, reminders, conference links;</li>
+<li>incremental sync with sync tokens, both ways.</li>
+</ul>
+</li>
+<li><strong>The calendar UI:</strong> day, week, month and agenda views; several accounts and calendars overlaid, with per-calendar colors and visibility.
+<ul>
+<li><strong>Events:</strong> create, edit, move and delete, including recurring ones ("this one", "this and following", "all").</li>
+<li><strong>Invites:</strong> RSVP to invites, from the calendar or from the invite email itself. ICS invites in mail are matched to the calendar event.</li>
+<li><strong>Free/busy</strong> across accounts, for scheduling.</li>
+</ul>
+</li>
+<li><strong>In the graph,</strong> events are event things, linked to their attendees (person things), places, and the mail threads and documents about them.
+<ul>
+<li>Before a meeting, a brief can gather the attendees' recent threads, open commitments and related documents.</li>
+</ul>
+</li>
+<li><strong>Agents:</strong>
+<ul>
+<li><strong>Scheduling:</strong> find times across your calendars and propose them in a reply.</li>
+<li><strong>Meeting preparation:</strong> a workflow before each meeting, delivered as a notification.</li>
+<li><strong>Follow-up:</strong> after the meeting, draft notes and commitments.</li>
+<li>Anything that writes to the calendar or sends an invite is held for your approval by default, like <code>mail_send</code>.</li>
+</ul>
+</li>
+<li><strong>Reminders</strong> use carbon6's notifications, so web push reaches your phone.</li>
+</ul>
+<h3 id="65-contacts">6.5 Contacts</h3>
+<ul>
+<li><strong>Google People API sync</strong> of contacts and contact groups, per account, both ways, incremental with sync tokens.</li>
+<li><strong>Contacts are person things</strong> in the graph. Google contacts, other accounts' contacts, and people seen only in mail resolve into one person each, with all their addresses, phones, organizations and photos (including named face clusters).</li>
+<li><strong>Contacts built from mail:</strong>
+<ul>
+<li>people you've exchanged mail with in both directions become contact candidates;</li>
+<li>so do details found in signatures (title, phone, company), as inferred facts with evidence.</li>
+</ul>
+</li>
+<li><strong>Writing back to Google:</strong>
+<ul>
+<li>candidates you confirm, or that pass a rule (for example "replied to at least twice"), are created in Google Contacts, in a contact group named <code>carbon6</code> so they stay separable;</li>
+<li>enrichments of existing contacts are written back only for observed facts, or ones you confirmed. Inferred guesses never overwrite what's in Google.</li>
+</ul>
+</li>
+<li><strong>Conflicts</strong> are settled field by field: the most recent change wins. Changes you made in carbon6 win over carbon6's own inferences.</li>
+</ul>
+<h3 id="66-agents-and-mail">6.6 Agents and mail</h3>
+<ul>
+<li>
+<p><strong>Triage</strong> (a workflow, on new mail or a schedule):</p>
+<ul>
+<li>classify, summarize, extract commitments;</li>
+<li>fill Needs reply and Waiting;</li>
+<li>send a daily digest.</li>
+</ul>
+</li>
+<li>
+<p><strong>Drafting:</strong> "draft a reply" puts the thread, the relationship with the sender and relevant memex context into a session. The draft appears in Drafts for you to edit.</p>
+</li>
+<li>
+<p><strong>Sending is held for your approval by default.</strong> Mail tools come with a built-in policy: ask before <code>mail_send</code>. You can relax it per recipient or label.</p>
+</li>
+<li>
+<p><strong>Email content is untrusted input:</strong></p>
+<ul>
+<li>it's passed to agents as quoted data, never as instructions;</li>
+<li>sessions that process mail run with a restricted tool set by default: no shell, no browser input, no mail sending without approval;</li>
+<li>links found in mail are never followed automatically.</li>
+</ul>
+<p>This addresses prompt injection, the main risk of an agent reading mail.</p>
+</li>
+</ul>
+<h2 id="7-photos-and-videos">7. Photos and videos</h2>
+<ul>
+<li><strong>Sources:</strong> folders on the memex host or on workers, and Apple Photos or Google Photos exports. Watched folders pick up new media.</li>
+<li><strong>Per photo:</strong>
+<ul>
+<li>time, place and camera (EXIF);</li>
+<li>a thumbnail;</li>
+<li>a caption and scene from a vision model;</li>
+<li>objects;</li>
+<li>faces: detected, embedded and clustered, then named by you in the review queue. Naming a cluster links it to a person thing, so photos join the same graph as email.</li>
+</ul>
+</li>
+<li><strong>Per video:</strong>
+<ul>
+<li>duration, keyframes (by scene change), and a transcript with timestamps;</li>
+<li>faces and objects per keyframe;</li>
+<li>captions per scene.</li>
+</ul>
+</li>
+<li><strong>Search</strong> works by person, place, time, object, description ("the whiteboard photo from the Acme offsite") or similarity.</li>
+<li><strong>Trips and events</strong> are suggested as event things from clusters in time and place.</li>
+</ul>
+<h3 id="71-as-built-step-5">7.1 As built (step 5)</h3>
+<ul>
+<li><strong>Sources:</strong>
+<ul>
+<li>Photos and videos in memex folders (Settings → Memex folders) are read in place. Only thumbnails, face crops and keyframes are stored.</li>
+<li>Photo types: JPEG, PNG, WebP, GIF, TIFF, plus HEIC via macOS <code>sips</code>.</li>
+<li>Video types: MOV, MP4, M4V and 3GP. AVI and MKV are listed by file only.</li>
+<li>Deleting a file removes its item.</li>
+</ul>
+</li>
+<li><strong>What the file gives:</strong>
+<ul>
+<li>EXIF: time (with its offset, else the machine's zone), GPS and camera, plus the orientation, used for the thumbnail.</li>
+<li>A video's container: duration, creation time and location (ISO 6709, from <code>©xyz</code> or Apple's key).</li>
+</ul>
+</li>
+<li><strong>Places:</strong> set "Places (GeoNames file)" to a cities file on the memex's machine, such as <code>cities1000.txt</code> from GeoNames.
+<ul>
+<li>Nothing is downloaded for you.</li>
+<li>The nearest city within 50 km becomes a <code>place:geonames:&lt;id&gt;</code> thing, linked with <code>at</code>.</li>
+<li>Setting the file places existing photos too.</li>
+</ul>
+</li>
+<li><strong>Events and trips:</strong> photos and videos with gaps under 6 hours form a group.
+<ul>
+<li>A group of 10 or more is an event thing (<code>event:photos:&lt;first item&gt;</code>), linked with <code>part_of</code> (inferred).</li>
+<li>It is a trip when it spans more than 20 hours and goes beyond 100 km of home, home being the most common place.</li>
+<li>Events are rebuilt after scans.</li>
+</ul>
+</li>
+<li><strong>Vision:</strong> the vision task (Settings → Memex) sees the thumbnail, or up to 4 keyframes of a video. It returns a caption, which becomes the title, plus the scene, objects and any text in the picture.
+<ul>
+<li>All of these are searchable.</li>
+<li>Objects become <code>object:&lt;name&gt;</code> things, linked with <code>shows</code> (inferred).</li>
+<li>Newest first, within the shared daily budget.</li>
+</ul>
+</li>
+<li><strong>Faces:</strong> you supply two ONNX files on the memex's machine:
+<ul>
+<li>an UltraFace-style detector (input 1×3×H×W, outputs scores N×2 and boxes N×4);</li>
+<li>an ArcFace- or MobileFaceNet-style embedder (1×3×112×112).</li>
+<li>They run on the CPU with tract.</li>
+<li>A face joins the person whose average face is closest (cosine ≥ 0.45). Otherwise it becomes a new "Unnamed person N".</li>
+<li>After 3 photos, an unnamed person goes to the review queue with their face. Naming them merges them into the person of that name, if there is exactly one (for example, the person you email); otherwise a new person is made.</li>
+<li>Photos link to people with <code>depicts</code> (inferred).</li>
+</ul>
+</li>
+<li><strong>Videos:</strong> with ffmpeg on the memex's machine (or <code>C6_FFMPEG</code>), a video gets up to 6 keyframes (the first frame and scene changes).
+<ul>
+<li>With a transcription task, its sound goes to an OpenAI-style <code>/audio/transcriptions</code> (up to 90 minutes), and the timestamped transcript joins its text.</li>
+</ul>
+</li>
+<li><strong>Photos page:</strong>
+<ul>
+<li>a grid by month;</li>
+<li>search by description;</li>
+<li>people (with faces), places and events as filters;</li>
+<li>a photo view with face boxes, its things, a map link and keyframes;</li>
+<li>images through <code>/api/v1/memex/media/{id}/thumb</code> and <code>/api/v1/memex/face/{person}</code>.</li>
+</ul>
+</li>
+</ul>
+<h2 id="8-ui">8. UI</h2>
+<ul>
+<li><strong>Memex</strong> in the menu:
+<ul>
+<li>Search across everything, grouped by kind, with filters for person, topic, source and time;</li>
+<li>thing pages: a card, a timeline, related things, items, and the sessions about it;</li>
+<li>a graph explorer, centred on a thing, with filters and depth;</li>
+<li>trails: list, view, edit, and "start a trail from here";</li>
+<li>the review queue;</li>
+<li>sources and jobs: progress, backlog, errors and budgets.</li>
+</ul>
+</li>
+<li><strong>Mail</strong> in the menu: the client (section 6).</li>
+<li>Throughout carbon6:
+<ul>
+<li>@-mentions complete things;</li>
+<li>thing chips on sessions link to their pages;</li>
+<li>the inbox shows mail and commitments next to sessions.</li>
+</ul>
+</li>
+</ul>
+<h2 id="9-security-and-privacy">9. Security and privacy</h2>
+<ul>
+<li><strong>The fabric's mTLS and enrollment</strong> apply to <code>c6m</code>, and its certificate role limits what it may ask of the head (2.4).</li>
+<li><strong>Scopes</strong> limit what each session can see (2.3). By default, sessions see nothing from email or photos unless a scope rule allows it.</li>
+<li><strong>Model choice per source</strong> decides where your data goes; local-only is one rule away.</li>
+<li><strong>Deletion</strong> removes an item, its blobs, parts, vectors, faces and evidence, and any links left without evidence.</li>
+<li><strong>Untrusted content</strong> (mail and web pages) is fenced off from agents' instructions (6.3), and its links aren't followed automatically.</li>
+</ul>
+<h2 id="10-build-order">10. Build order</h2>
+<p>Each step is usable on its own:</p>
+<ol>
+<li><strong>Service and foundation:</strong>
+<ul>
+<li><code>c6m</code> with enrollment and the fabric relay;</li>
+<li>the store, items, search (keyword and meaning), and the agent tools;</li>
+<li>carbon6 → memex: digests, outputs, web pages, and memory migrated;</li>
+<li>labels → things, and context briefs;</li>
+<li>scopes;</li>
+<li>the Memex Search page.</li>
+</ul>
+</li>
+<li><strong>Documents and papers:</strong> extraction, passages, the citation graph, claims, notes and trails.</li>
+<li><strong>Mail, calendar and contacts (Google):</strong>
+<ul>
+<li>accounts and OAuth setup;</li>
+<li>Gmail history import and sync, and the structure tier;</li>
+<li>identity resolution and the review queue;</li>
+<li>the mail client UI, sending with approval, rules;</li>
+<li>Calendar sync and UI, invites and RSVP;</li>
+<li>People sync and contacts built from mail;</li>
+<li>triage, drafting, scheduling and meeting-prep workflows, memex event triggers, and inbox integration.</li>
+</ul>
+</li>
+<li><strong>Understanding tiers:</strong> summaries, topics, commitments, the graph explorer and timelines. (Built: see 5.1.)</li>
+<li><strong>Photos and videos:</strong> EXIF and places, captions, objects, faces and naming, transcripts. (Built: see 7.1.)</li>
+<li><strong>One ingest API (4.5).</strong> (Built: see 4.5, "As built".)
+<ul>
+<li><code>memex.ingest</code> and <code>memex.types</code>, the handler registry, and per-item results;</li>
+<li>mail as the first handler: imported mail, threading by headers, upgrade to mirrored;</li>
+<li>upload, folder scan, notes and the head's internal ingest moved onto it.</li>
+</ul>
+</li>
+</ol>
+<h2 id="11-decisions">11. Decisions</h2>
+<table><thead><tr><th>Question</th><th>Decision</th></tr></thead><tbody>
+<tr><td>Architecture</td><td>A separate service (<code>c6m</code>) with an API, reachable over the fabric from the head and workers, and able to call the head to start agents</td></tr>
+<tr><td>Models</td><td>You pick a model per task</td></tr>
+<tr><td>Mail</td><td>carbon6 replaces the mail client: Gmail and Google Workspace, any number of accounts</td></tr>
+<tr><td>Calendar</td><td>Full calendar, synced both ways</td></tr>
+<tr><td>Contacts</td><td>Synced both ways with Google Contacts, plus contacts built from mail and written back</td></tr>
+<tr><td>Media</td><td>Faces, places, objects and scenes</td></tr>
+<tr><td>Where <code>c6m</code> runs</td><td>This Mac first, with nothing assuming it</td></tr>
+<tr><td>Exclusions</td><td>None: everything is brought in (Spam is kept out of agents' context)</td></tr>
+<tr><td>Google Cloud project</td><td>You have one; adding an account asks for its OAuth client</td></tr>
+<tr><td>Old mail</td><td>No Thunderbird importer. Archives can come in through <code>memex.ingest</code> from any tool, deduplicated by Message-ID</td></tr>
+<tr><td>Getting data in</td><td>One ingest API typed by MIME type, with registered handlers that keep their own identity, schema and storage; connectors and actions stay separate (4.5)</td></tr>
+<tr><td>Encryption at rest</td><td>Left to the disks</td></tr>
+</tbody></table>
+<h2 id="12-open-questions">12. Open questions</h2>
+<p>None blocking. To revisit when we reach them:</p>
+<ul>
+<li>Where your photo and video libraries live.</li>
+</ul>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/memex.md">docs/memex.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-goals">1. Goals</a></li><li><a href="#2-architecture">2. Architecture</a></li><li><a href="#3-context-flowing-both-ways">3. Context flowing both ways</a></li><li><a href="#4-data-model">4. Data model</a></li><li><a href="#5-pipelines">5. Pipelines</a></li><li><a href="#6-mail-calendar-and-contacts">6. Mail, calendar and contacts</a></li><li><a href="#7-photos-and-videos">7. Photos and videos</a></li><li><a href="#8-ui">8. UI</a></li><li><a href="#9-security-and-privacy">9. Security and privacy</a></li><li><a href="#10-build-order">10. Build order</a></li><li><a href="#11-decisions">11. Decisions</a></li><li><a href="#12-open-questions">12. Open questions</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>
