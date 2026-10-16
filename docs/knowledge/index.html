@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Knowledge in the head · carbon6</title><meta name="description" content="Proposed: the head keeps the knowledge graph, parsing runs in sandboxed kits, and Gmail, Calendar and Contacts become apps."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/knowledge/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Knowledge in the head · carbon6"><meta property="og:description" content="Proposed: the head keeps the knowledge graph, parsing runs in sandboxed kits, and Gmail, Calendar and Contacts become apps."><meta property="og:url" content="https://carbon6.dev/docs/knowledge/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/apps/">Apps and data</a></li><li><a href="/docs/knowledge/" aria-current="page">Knowledge in the head</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Knowledge in the head — Design</h1><div><p>Status: proposed (2026-10-16). Nothing here is built. It goes with docs/apps.md: that doc says who owns and changes data, this one says where knowledge is kept and what becomes of the memex. It replaces docs/memex.md §2 (architecture), §4.4 (storage) and §6.1–6.5 (Google accounts and sync) as §11 lists; the rest of memex.md (what knowledge is, the pipelines' work, the mail client's behaviour) still holds.</p>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Knowledge in the head · carbon6</title><meta name="description" content="Proposed: the head keeps the knowledge graph, parsing runs in sandboxed kits, and Gmail, Calendar and Contacts become apps."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/knowledge/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Knowledge in the head · carbon6"><meta property="og:description" content="Proposed: the head keeps the knowledge graph, parsing runs in sandboxed kits, and Gmail, Calendar and Contacts become apps."><meta property="og:url" content="https://carbon6.dev/docs/knowledge/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/apps/">Apps and data</a></li><li><a href="/docs/knowledge/" aria-current="page">Knowledge in the head</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Knowledge in the head — Design</h1><div><p>Status: being built (2026-10-16); §13 records what is built and where it differs. It goes with docs/apps.md: that doc says who owns and changes data, this one says where knowledge is kept and what becomes of the memex. It replaces docs/memex.md §2 (architecture), §4.4 (storage) and §6.1–6.5 (Google accounts and sync) as §11 lists; the rest of memex.md (what knowledge is, the pipelines' work, the mail client's behaviour) still holds.</p>
 <h2 id="1-the-idea">1. The idea</h2>
 <p>The memex is a database: a knowledge graph with search. Like Postgres, it should store, index and enforce, and leave deciding what the data says to the programs that write it. Two things follow:</p>
 <ul>
@@ -136,4 +136,207 @@
 <li><strong>A head with no worker.</strong> Should a head ship a minimal extraction kit it can run itself, sandboxed, so uploads of plain text and Markdown work with no worker at all?</li>
 <li><strong>Vectors at scale.</strong> Millions of vectors per realm fit in memory on one machine; whether the index should live on disk (an on-disk ANN index) before that becomes a problem.</li>
 </ul>
-</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/knowledge.md">docs/knowledge.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-the-idea">1. The idea</a></li><li><a href="#2-why-the-head">2. Why the head</a></li><li><a href="#3-what-the-head-keeps">3. What the head keeps</a></li><li><a href="#4-the-head-stores-it-never-parses-or-computes">4. The head stores; it never parses or computes</a></li><li><a href="#5-blobs-live-where-you-choose">5. Blobs live where you choose</a></li><li><a href="#6-mirror-apps-gmail-calendar-and-contacts">6. Mirror apps: Gmail, Calendar and Contacts</a></li><li><a href="#7-understanding-as-apps">7. Understanding as apps</a></li><li><a href="#8-your-memex-moved">8. Your memex, moved</a></li><li><a href="#9-build-order">9. Build order</a></li><li><a href="#10-decisions">10. Decisions</a></li><li><a href="#11-what-this-replaces">11. What this replaces</a></li><li><a href="#12-open-questions">12. Open questions</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>
+<h2 id="13-as-built">13. As built</h2>
+<h3 id="131-knowledge-in-the-head-step-1">13.1 Knowledge in the head (step 1)</h3>
+<ul>
+<li><strong>The memex is a library of the head.</strong> <code>c6h</code> opens it at start (<code>knowledge.rs</code>) and keeps it in <code>HeadState</code>.
+<ul>
+<li>Its link to the head is in-process: <code>HeadLink::local</code> sends its calls (settings, events, decisions, notices) to <code>fabric::memex_call</code>, and its credential requests to the same broker workers use.</li>
+<li>The head's memex calls (the outbox, briefs, status, the API, workers' relayed calls) go straight to it, each with a time limit.</li>
+</ul>
+</li>
+<li><strong>Where knowledge lives:</strong> <code>&lt;data_dir&gt;/knowledge/</code>, in the memex's own layout: home's <code>memex.db</code> and blobs at its root, each other realm's under <code>realms/&lt;id&gt;/</code>. This differs from §3's <code>realms/&lt;realm&gt;/knowledge.db</code> names, but the separation is the same.</li>
+<li><strong>A separate <code>c6m</code> is turned away</strong> when it attaches ("the memex is part of the head now"). Moving an existing memex in, and removing <code>c6m</code>, is step 7.</li>
+<li><strong>Not yet:</strong> parsing and models still run where the memex ran, which is now the head's process. Steps 2 and 6 move them out to kits and system packages.</li>
+<li><strong>Deviation: collections stay in <code>c6h.db</code></strong> rather than moving into each realm's knowledge file (§3). Every settings list, the memory notes and the prompts are records of system collections, so moving collections would split the head's own configuration across per-realm files. The record mirror to search is in-process now, so it is synchronous rather than a fabric hop. One store for both is left as a follow-up.</li>
+<li><strong>Briefs and memory notes:</strong> with a knowledge store always present, every session gets a brief. Memory notes now always come in the session's Memory section (filtered by their scope), and briefs leave them out instead of repeating them. Before, a scoped note could show in an unrelated session's brief.</li>
+</ul>
+<h3 id="132-moving-an-existing-memex-in-and-removing-c6m-step-7">13.2 Moving an existing memex in, and removing c6m (step 7)</h3>
+<ul>
+<li><strong>On start:</strong> the head looks where <code>c6m</code> kept its state on this machine: c6m's usual folder, and <code>/var/lib/c6m</code>. A head run from its config file looks; a test head (no file) never does.
+<ul>
+<li>If the head's knowledge is still empty and that folder's <code>memex/</code> holds knowledge, the folder is moved in as <code>&lt;data_dir&gt;/knowledge</code>. It's a rename, so nothing is copied on one disk.</li>
+<li>Whatever the head had there is kept aside as <code>knowledge.before-&lt;time&gt;</code>.</li>
+<li>Memex worker rows are retired, and a follow-up says how to remove <code>c6m</code> (<code>brew services stop c6m &amp;&amp; brew uninstall c6m</code>, or <code>apt remove c6m</code>).</li>
+</ul>
+</li>
+<li><strong>While <code>c6m</code> runs</strong> (it holds its lock), nothing moves. A follow-up asks you to stop it, and the move happens on the next start.</li>
+<li><strong>Elsewhere:</strong> <code>c6h import-knowledge &lt;memex folder&gt; [--copy]</code>, with the head stopped, for a memex on another machine (copy its folder over first) or another disk.</li>
+<li><strong>Removed:</strong> the <code>c6m</code> binary and crate entry, its Homebrew formula, its .deb and systemd unit, <code>make dev-memex</code>, and the memex enrollment in Settings. The memex library (<code>c6-memex</code>) stays, now linked into <code>c6h</code>.</li>
+<li><strong>Not yet:</strong> Gmail, Calendar and Contacts still sync from the memex code inside the head; they become apps with step 6.</li>
+</ul>
+<h3 id="133-kit-jobs-allow-lists-and-oauth-providers-steps-3-and-4">13.3 Kit jobs, allow-lists and OAuth providers (steps 3 and 4)</h3>
+<ul>
+<li><strong>Kit jobs</strong> (<code>kitjobs.rs</code>): the head runs a kit tool on a worker with no session and no model. Workers with a container runtime say so (capability <code>kits</code>) and answer <code>kit.job</code>.
+<ul>
+<li>The job runs in a folder of its own under the worker's state, with its inputs written there first, in the sandbox the kit's permissions describe.</li>
+<li>What it leaves in <code>out/</code> comes back, up to 64 MB.</li>
+<li>A first run may build the kit's image; the head allows 35 minutes on top of the run's own limit for that.</li>
+</ul>
+</li>
+<li><strong>Kit output that becomes owned data:</strong> an <code>out/ingest.json</code> is kept as the app that ran the job (<code>app:&lt;name&gt; kit:&lt;kit&gt;.&lt;tool&gt;</code>), each part checked like any write of that owner:
+<ul>
+<li><code>records</code> (by <code>id</code>, or by a <code>key</code> field's value, else new);</li>
+<li><code>things</code>;</li>
+<li>knowledge <code>items</code>;</li>
+<li><code>claims</code>.</li>
+</ul>
+</li>
+<li><strong>Triggers:</strong> the <code>kit</code> action, <code>{instance, kit, tool, args}</code> (an app's own trigger runs its own app's kit), with the event mapped into <code>args</code>.</li>
+<li><strong>Operations:</strong> kind <code>kit</code> (<code>{kit, tool, args}</code>, mapped from the input). The kit must be one the package requires.</li>
+<li><strong>Network allow-lists:</strong> a kit's <code>network</code> can be <code>hosts</code>, with <code>hosts: [...]</code>.
+<ul>
+<li>Its runs go on an internal container network with no route out. A tinyproxy container sits on that network and on the default bridge, and denies every host but the listed ones (<code>HTTPS_PROXY</code> in the run).</li>
+<li>The proxy image (<code>c6kit/egress</code>, from Alpine) is built on first use.</li>
+<li>Tested on Docker Desktop: the listed host is reached and others are refused.</li>
+</ul>
+</li>
+<li><strong>OAuth providers</strong> (<code>providers.rs</code>, migration <code>0044</code>): a package declares <code>providers</code> with <code>authorize_url</code>, <code>token_url</code>, <code>scopes</code>, an optional <code>userinfo_url</code> and <code>account_field</code>, extra <code>params</code>, and the realm secrets that hold your OAuth client (<code>client_id_secret</code>, <code>client_secret_secret</code>, which must be among the secrets it asks for).
+<ul>
+<li>You connect accounts from its entry under Settings → System → Packages.</li>
+<li>The head runs the sign-in at <code>/auth/oauth/callback</code> and keeps each account's refresh token encrypted (<code>oauth_accounts</code>).</li>
+<li>Kit jobs get <code>C6_ACCOUNTS</code>: a JSON list of <code>{provider, account, access_token, expires_at}</code>, refreshed when near expiry, never with the refresh token.</li>
+<li>Removing the app forgets its accounts.</li>
+</ul>
+</li>
+</ul>
+<h3 id="134-never-parse-step-2">13.4 Never parse (step 2)</h3>
+<ul>
+<li><strong>c6-extract:</strong> the parsers the memex had in-process now live in a crate of their own, <code>crates/c6-extract</code>: mail (mail-parser, HTML to text), PDF, Word and HTML documents with paper recognition, EXIF and thumbnails, HEIC (libheif), video containers, keyframes and sound (ffmpeg), and faces (tract with your ONNX models).
+<ul>
+<li>It is a <strong>system kit</strong>. Its source, <code>Dockerfile</code> and its own <code>Cargo.lock</code> are embedded in <code>c6h</code>, and the worker builds the image: Rust in a build stage, ffmpeg and libheif in the image. On Docker Desktop that takes about 2 minutes, once.</li>
+<li>It runs with no network, 2 CPUs, 2 GB and 10 minutes a run.</li>
+<li>It has one tool, <code>extract</code>, which runs <code>jobs.json</code>: a tool name (<code>document</code>, <code>mail</code>, <code>attachment</code>, <code>media</code>, <code>faces</code>, <code>video</code>) and jobs. Results go to <code>out/result.json</code>, and files to <code>out/&lt;job&gt;/</code>. A job that panics is reported as that job's error.</li>
+</ul>
+</li>
+<li><strong>Approval, then upgrades:</strong> the first time something needs reading, the head adds the package and asks you to install it (Decisions). Answering Install retries what waits.
+<ul>
+<li>A newer kit in a later carbon6 is offered as an upgrade.</li>
+<li>A unit test ties the kit's version to a digest of its source (<code>kit.digest</code>), since the registry refuses changed content under the same version.</li>
+</ul>
+</li>
+<li><strong>The queue</strong> (<code>extractions</code> in each realm's knowledge database, migration 0009): one job per key, such as <code>doc:&lt;source&gt;:&lt;id&gt;</code>, <code>mail:&lt;source&gt;:&lt;id&gt;</code>, <code>gmail:&lt;account&gt;:&lt;id&gt;</code>, <code>folder:&lt;location&gt;</code>, <code>faces:&lt;item&gt;</code>, <code>video:&lt;item&gt;</code>, <code>reparse:&lt;item&gt;</code>.
+<ul>
+<li>A runner sends batches of one tool and one place: up to 24 jobs, and up to 24 MB of the store's own files.</li>
+<li>What comes back is kept as before: items, the mail store, papers' citation graph, media rows, faces grouped into people, keyframes and transcripts.</li>
+<li>When no worker can run it, or you haven't approved it yet, jobs back off from a minute, doubling, to an hour. The status shows how many wait (<code>extracting</code>) and why.</li>
+</ul>
+</li>
+<li><strong>Where files are</strong> (§5): a job's input is <code>head:&lt;blob&gt;</code> (uploads, ingested and synced mail), or <code>worker:&lt;name&gt;:&lt;path&gt;</code>.
+<ul>
+<li>A watched folder names its worker (<code>worker</code> on Memex folders; empty means the worker on the head's machine, matched by hostname). The worker lists it (<code>fs.walk</code>), and its files are mounted read-only into the kit's run at <code>/mnt/N</code>. Nothing is copied.</li>
+<li>Originals open through the worker (<code>fs.read_file</code>, up to 40 MB).</li>
+<li>Bare paths in folders kept before this mean the head's machine, so nothing is read again.</li>
+</ul>
+</li>
+<li><strong>Ingest and uploads wait</strong> up to a minute for the kit (90 seconds for an upload), then answer as before: created, updated, duplicate or rejected. Past that, an item is <code>queued</code>.
+<ul>
+<li>Plain text and Markdown are kept without the kit, so a head with no worker can still take them (§12's question, answered for text).</li>
+<li>Files the store holds itself are capped at 40 MB, since they travel to the worker inside one message.</li>
+</ul>
+</li>
+<li><strong>Mail is read once:</strong> its text and HTML are kept as blobs, and its attachments' names in the mail row. A thread shows them without parsing. An attachment's bytes are read from the message by the kit when you open it.
+<ul>
+<li>Mail kept before this is read again in the background, 100 at a time. Until then a thread shows its searchable text.</li>
+</ul>
+</li>
+<li><strong>Removed from c6-memex:</strong> htmd, image, kamadak-exif, mail-parser, pdf-extract, tract-onnx, zip and regex; and running ffmpeg and sips on the head.
+<ul>
+<li>Tests use the same code in-process (<code>c6_memex::extract::InProcess</code>, behind the <code>in-process-extract</code> feature that only tests enable).</li>
+<li><code>C6_TEST_KITS=1</code> runs the real kit end to end: an approval, a Docker build, a folder on a worker read in place, and mail with an attachment.</li>
+</ul>
+</li>
+<li><strong>Not done:</strong> embeddings still go to a model connection from the head (§4 allows it); OCR of scans is not in the kit yet; object storage for blobs (§5) is later.</li>
+</ul>
+<h3 id="135-shared-item-kinds-and-their-views-step-5">13.5 Shared item kinds and their views (step 5)</h3>
+<ul>
+<li><strong>Item kinds in root's vocabulary:</strong> <code>email</code>, <code>attachment</code>, <code>event</code>, <code>contact</code>, <code>document</code>, <code>paper</code>, <code>photo</code>, <code>video</code> (and <code>note</code>, <code>session</code>, <code>record</code>). Each has a <code>schema</code>, the JSON Schema of its items' <code>meta</code> (for example, an email has a <code>thread_id</code>; an event has <code>end</code> and <code>all_day</code>), and a data <code>card</code> (sources, invariants, freshness).
+<ul>
+<li>Vocabularies seeded before this get the schemas, cards and new kinds added. Entries you changed keep your changes.</li>
+<li>A schema is checked when you save the vocabulary.</li>
+</ul>
+</li>
+<li><strong>Apps' items are checked:</strong> an item in a kit's <code>out/ingest.json</code> of a kind with a schema must fit it, or it is refused, with the reason among the run's errors. Items carbon6 makes itself (the Gmail sync until step 6, extraction) already fit.</li>
+<li><strong>View kinds</strong> <code>messages</code> (email), <code>calendar</code> (event) and <code>gallery</code> (photo and video). Their source is <code>{"items": kind, "owner"?: app}</code>.
+<ul>
+<li>The owner defaults to the app that brings the view. A view of your own with no owner shows anyone's items.</li>
+<li><code>GET /api/v1/views/{name}/items</code> lists them: newest first with <code>before</code>, or from a time on, oldest first, with <code>from</code> and <code>to</code>. <code>…/items/{id}/thumb</code> gives a picture: a photo's thumbnail, or the blob an item's <code>meta.thumb</code> names.</li>
+</ul>
+</li>
+<li><strong>Actions on items:</strong> <code>POST /api/v1/views/{name}/act</code> with <code>item</code> calls an operation of the owning app (<code>op</code>, or <code>app.op</code>), its input mapped from the item (<code>$.id</code>, <code>$.title</code>, <code>$.meta.thread_id</code>), as that app. It can also start a template with the item as input (sessions labelled <code>item:&lt;id&gt;</code>).</li>
+<li><strong>In the UI</strong> (<code>itemviews.rs</code>):
+<ul>
+<li><strong>messages:</strong> threads (by <code>thread_id</code>) beside the chosen thread's messages, with the actions acting on its newest message;</li>
+<li><strong>calendar:</strong> a week by day, with times or "all day";</li>
+<li><strong>gallery:</strong> a grid of thumbnails, with photos and videos side by side, and one opened larger with its actions.</li>
+<li>Each has paging back in time.</li>
+<li>The Mail, Calendar and Photos pages stay as they are until step 6 moves mail, calendar and contacts into apps.</li>
+</ul>
+</li>
+</ul>
+<h3 id="136-gmail-calendar-and-contacts-as-apps-step-6">13.6 Gmail, Calendar and Contacts as apps (step 6)</h3>
+<ul>
+<li><strong>Packages</strong> (<code>crates/c6-google</code>, part of carbon6, offered for install with your approval):
+<ul>
+<li>the kit <strong>google</strong>: a Rust binary built in its image, as c6-extract is. Its network is <code>hosts</code>: www.googleapis.com, gmail.googleapis.com and people.googleapis.com.</li>
+<li>the apps <strong>gmail</strong>, <strong>google-calendar</strong> and <strong>google-contacts</strong>, which require it. Each has:
+<ul>
+<li>the OAuth provider <code>google</code> (the client in home's secrets <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code>);</li>
+<li><code>feeds</code> (<code>mail</code>, <code>calendar</code>, <code>contacts</code>: a new manifest field naming the knowledge store's stores its accounts feed);</li>
+<li>an internal collection where its syncs are (<code>gmail_sync</code>, <code>calendar_sync</code>, <code>contacts_sync</code>);</li>
+<li>a schedule trigger that runs its sync tool with no agent (every 2, 3 and 10 minutes);</li>
+<li>kit operations: gmail's <code>modify</code>, <code>send</code> and <code>draft</code>; the calendar's <code>create</code>, <code>update</code>, <code>delete</code> and <code>rsvp</code>; the contacts' <code>create</code>.</li>
+</ul>
+</li>
+<li>A unit test ties the packages' versions to a digest of their source (<code>kit.digest</code>).</li>
+</ul>
+</li>
+<li><strong>The kit</strong> talks to Google and keeps nothing:
+<ul>
+<li>It reads where each sync is (<code>state/&lt;collection&gt;.json</code>) and an operation's input (<code>input.json</code>).</li>
+<li>It writes what changed as typed items in <code>out/ingest.json</code>: messages as <code>message/rfc822</code> with Gmail's ids and labels as attributes (a label change is the item without its bytes); label names, calendars, events and contacts in Google's own JSON (<code>application/vnd.c6.*+json</code>); deletions; the syncs' new records; and <code>again</code> while an import is under way.</li>
+<li>A run brings up to 24 MB of messages. The rest of an import page waits in the sync's <code>queue</code>, and the trigger runs again at once.</li>
+<li>An operation's answer goes in <code>out/result.json</code>.</li>
+</ul>
+</li>
+<li><strong>New kit primitives:</strong>
+<ul>
+<li>Operations' and triggers' <code>state</code> (the app's collections, given to the run).</li>
+<li><code>input.json</code> (the input with the kit operation's arguments).</li>
+<li>Typed items, <code>deleted</code>, <code>again</code> and <code>result</code> in a run's output.</li>
+<li><code>id</code> in <code>C6_ACCOUNTS</code>.</li>
+<li><code>kitjobs::run_locally</code> (a kit's code in-process, for tests).</li>
+<li><code>providers::connect_many</code> (one sign-in for several apps; the Google apps use the redirect address registered before, <code>/auth/google/callback</code>).</li>
+<li>The knowledge store's <code>app.call</code> link, so it can call an app's operation.</li>
+</ul>
+</li>
+<li><strong>The knowledge store keeps its mail, calendar and contacts stores</strong>, fed by whichever app owns an account:
+<ul>
+<li>Typed ingest written as an app (<code>as: app:&lt;name&gt;</code>, which only the head can set).</li>
+<li>Mirrored mail, with the mailbox's labels.</li>
+<li>Calendars, events (with recurrence expansion as before) and contacts.</li>
+<li>The mail client, calendar and contacts act through the owning app's operations (<code>modify</code>, <code>send</code> after the undo window, <code>draft</code>, <code>create</code> and the rest). The app changes the provider, and what changed comes back through its output.</li>
+<li>Accounts reach the knowledge store from the head's config, with their app and what they feed.</li>
+</ul>
+</li>
+<li><strong>Removed:</strong> the memex's Google client and syncs (<code>google.rs</code>), the head's Google token broker (<code>google:</code> credentials), and the head's own Google sign-in. Settings → Mail &amp; calendar now installs the apps, sets the client and connects accounts for all three.</li>
+<li><strong>Moving in</strong> (<code>google::move_in</code>, once at start):
+<ul>
+<li>The three apps are installed in home, approved, since you had approved the memex's sync.</li>
+<li>The old OAuth client becomes home's secrets.</li>
+<li>Each account becomes each app's. The gmail app keeps the account's id, since the mail is filed by it; the calendar's and contacts' get theirs.</li>
+<li>Mail and event items become the apps' (<code>app:gmail</code>, <code>app:google-calendar</code>), with the same ids.</li>
+<li>Each sync's cursor moves into the apps' collections, so nothing is fetched again.</li>
+<li>A follow-up says so.</li>
+</ul>
+</li>
+<li><strong>Tested:</strong>
+<ul>
+<li>With the kit's code in-process against a stand-in Google: install, the sign-in's address with all three apps' scopes, import in pages, history, archiving, sending with undo, drafts, contacts written back, events with a recurring one and an exception, RSVP, an agent's mail held for approval, automations on new mail.</li>
+<li>The move in.</li>
+<li>The image builds, and reaches Google over TLS.</li>
+</ul>
+</li>
+<li><strong>Not done:</strong> understanding (summaries, links, facts, the review queue) still runs in the knowledge store. Making it system packages that write claims, with the review queue as decisions, is the rest of step 6.</li>
+</ul>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/knowledge.md">docs/knowledge.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-the-idea">1. The idea</a></li><li><a href="#2-why-the-head">2. Why the head</a></li><li><a href="#3-what-the-head-keeps">3. What the head keeps</a></li><li><a href="#4-the-head-stores-it-never-parses-or-computes">4. The head stores; it never parses or computes</a></li><li><a href="#5-blobs-live-where-you-choose">5. Blobs live where you choose</a></li><li><a href="#6-mirror-apps-gmail-calendar-and-contacts">6. Mirror apps: Gmail, Calendar and Contacts</a></li><li><a href="#7-understanding-as-apps">7. Understanding as apps</a></li><li><a href="#8-your-memex-moved">8. Your memex, moved</a></li><li><a href="#9-build-order">9. Build order</a></li><li><a href="#10-decisions">10. Decisions</a></li><li><a href="#11-what-this-replaces">11. What this replaces</a></li><li><a href="#12-open-questions">12. Open questions</a></li><li><a href="#13-as-built">13. As built</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

@@ -96,7 +96,7 @@
 </ol>
 <p>The files on a release:</p>
 <table><thead><tr><th>File</th><th>What it is</th></tr></thead><tbody>
-<tr><td><code>c6h_&lt;v&gt;_amd64.deb</code>, <code>_arm64.deb</code> (and <code>c6w</code>, <code>c6m</code>, <code>c6</code>)</td><td>Ubuntu packages with systemd units, for 22.04 and later</td></tr>
+<tr><td><code>c6h_&lt;v&gt;_amd64.deb</code>, <code>_arm64.deb</code> (and <code>c6w</code>, <code>c6</code>; <code>c6m</code> until 0.2.2, since the memex is part of the head)</td><td>Ubuntu packages with systemd units, for 22.04 and later</td></tr>
 <tr><td><code>carbon6-&lt;v&gt;-linux-amd64.tar.gz</code>, <code>-arm64</code></td><td>the four binaries, for Linux without packages</td></tr>
 <tr><td><code>c6h-&lt;v&gt;.arm64_big_sur.bottle.tar.gz</code>, <code>.big_sur.</code> (and the others)</td><td>Homebrew bottles, Apple Silicon and Intel, for macOS 11 and later</td></tr>
 <tr><td><code>c6h-&lt;v&gt;-darwin-arm64.tar.gz</code>, <code>-x86_64</code> (and the others)</td><td>each binary for macOS without Homebrew; also the formulas' source</td></tr>
@@ -120,7 +120,7 @@
 </ol>
 <h2 id="9-open-questions">9. Open questions</h2>
 <ul>
-<li><strong>Upgrade check across releases.</strong> A release could keep a small <code>c6h.db</code> and <code>memex.db</code> (<code>packaging/release/fixtures/&lt;version&gt;/</code>), and the Release workflow could run <code>c6h upgrade --check</code> and <code>c6m upgrade --check</code> from the previous release's copies. That catches a migration that breaks upgrades before it ships.</li>
+<li><strong>Upgrade check across releases.</strong> A release could keep a small <code>c6h.db</code> and <code>memex.db</code> (<code>packaging/release/fixtures/&lt;version&gt;/</code>), and the Release workflow could run <code>c6h upgrade --check</code> from the previous release's copies (and of its knowledge store). That catches a migration that breaks upgrades before it ships.</li>
 <li><strong>The commit in <code>--version</code> between releases.</strong> Today a build after <code>0.2.0</code> reports <code>0.2.0</code>. A build script could add <code>+git&lt;commit&gt;</code>.</li>
 <li><strong>An apt repository.</strong> A signed one, on GitHub Pages, would let <code>apt upgrade</code> pick up releases. It needs a signing key in the repository's secrets.</li>
 <li><strong>Docker images.</strong> <code>carbon6/c6h</code> and <code>carbon6/c6w</code> could be pushed to <code>ghcr.io</code> by the Release workflow.</li>

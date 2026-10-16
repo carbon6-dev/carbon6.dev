@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Apps and data · carbon6</title><meta name="description" content="Proposed: apps as instances in realms you choose, data open to read and written only by its owner, and code that changes only by upgrade."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/apps/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Apps and data · carbon6"><meta property="og:description" content="Proposed: apps as instances in realms you choose, data open to read and written only by its owner, and code that changes only by upgrade."><meta property="og:url" content="https://carbon6.dev/docs/apps/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/apps/" aria-current="page">Apps and data</a></li><li><a href="/docs/knowledge/">Knowledge in the head</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Apps: instances, owned data and open reading — Design</h1><div><p>Status: proposed (2026-10-16). Nothing here is built. It changes what docs/os.md §5 and docs/packages.md describe; §13 lists what it replaces. Where knowledge is kept, and what becomes of the memex, is in docs/knowledge.md.</p>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Apps and data · carbon6</title><meta name="description" content="Proposed: apps as instances in realms you choose, data open to read and written only by its owner, and code that changes only by upgrade."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/apps/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Apps and data · carbon6"><meta property="og:description" content="Proposed: apps as instances in realms you choose, data open to read and written only by its owner, and code that changes only by upgrade."><meta property="og:url" content="https://carbon6.dev/docs/apps/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/apps/" aria-current="page">Apps and data</a></li><li><a href="/docs/knowledge/">Knowledge in the head</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Apps: instances, owned data and open reading — Design</h1><div><p>Status: being built (2026-10-16); §18 records what is built and where it differs. It changes what docs/os.md §5 and docs/packages.md describe; §13 lists what it replaces. Where knowledge is kept, and what becomes of the memex, is in docs/knowledge.md.</p>
 <h2 id="1-the-problem">1. The problem</h2>
 <p>Today an app <em>is</em> a realm (os.md §5): installing one creates a realm holding its code, its sessions and its data, and other realms reach in only through grants. A realm decides three things at once:</p>
 <ol>
@@ -272,4 +272,129 @@
 <li><strong>Policies that depend on content:</strong> "believe the CRM's <code>works_at</code> only above confidence 0.8" needs conditions in a policy, not just an order of owners. Is an order enough to start?</li>
 </ul>
 <p>Settled since the first version: mail, calendar and contacts are in the realm whose accounts they are, owned by that realm's mirror apps, and stored by the head (docs/knowledge.md); and two apps tracking the same idea is no conflict, since things are shared and claims are owned (9).</p>
-</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/apps.md">docs/apps.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-the-problem">1. The problem</a></li><li><a href="#2-principles">2. Principles</a></li><li><a href="#3-words">3. Words</a></li><li><a href="#4-realms">4. Realms</a></li><li><a href="#5-instances">5. Instances</a></li><li><a href="#6-ownership">6. Ownership</a></li><li><a href="#7-operations">7. Operations</a></li><li><a href="#8-data-that-explains-itself">8. Data that explains itself</a></li><li><a href="#9-the-knowledge-graph-claims">9. The knowledge graph: claims</a></li><li><a href="#10-handoff">10. Handoff</a></li><li><a href="#11-many-tenants">11. Many tenants</a></li><li><a href="#12-upgrades-and-downgrades">12. Upgrades and downgrades</a></li><li><a href="#13-what-this-replaces">13. What this replaces</a></li><li><a href="#14-upgrading-whats-installed">14. Upgrading what's installed</a></li><li><a href="#15-build-order">15. Build order</a></li><li><a href="#16-decisions">16. Decisions</a></li><li><a href="#17-open-questions">17. Open questions</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>
+<h2 id="18-as-built">18. As built</h2>
+<h3 id="181-instances-ownership-and-immutable-code-steps-13">18.1 Instances, ownership and immutable code (steps 1–3)</h3>
+<ul>
+<li><strong>Migration <code>0042</code>:</strong>
+<ul>
+<li><code>installs</code> is rebuilt with a <code>name</code> (the instance's, unique per realm), <code>settings</code> (the values) and <code>adopted</code>;</li>
+<li><code>collections</code>, <code>series</code> and <code>triggers</code> get an <code>owner</code>, and <code>sessions</code> an <code>instance</code>;</li>
+<li>the collections, series and triggers an installed app's package names become that app's.</li>
+<li>Upgrade checks: every install keeps its id, package, version, realm and state, named after its package; the collections installed apps brought are theirs. Fixture <code>c6h-v0041.db</code> keeps the shape before.</li>
+</ul>
+</li>
+<li><strong>Instances</strong> (<code>instances.rs</code>): an installed app or library in a realm, with its package's manifest read from the registry by digest.
+<ul>
+<li><strong>Its code is never copied.</strong> <code>lists::effective_tagged</code> layers it: for a realm's sessions, root's entries, then what its instances offer, then the realm's own; for an instance's sessions, root's, the realm's, then the instance's own. Each entry says where it came from (<code>GET /api/v1/realms/{id}/effective/{key}</code>; the explorer marks an app's entries).</li>
+<li><strong>Settings</strong> (<code>settings</code> in the manifest, a JSON Schema of an object): values per instance (<code>GET</code>/<code>PUT /api/v1/installs/{id}/settings</code>), defaults filled in, and <code>{{settings.&lt;name&gt;}}</code> filled in its code wherever it applies.</li>
+<li><strong>Reads</strong> (<code>reads</code> in the manifest) are approved with the install and checked when an instance's session reads another owner's collection (<code>records_query</code>, <code>records_get</code>). Item kinds are recorded; they are enforced once knowledge is in the head.</li>
+</ul>
+</li>
+<li><strong>Installing:</strong>
+<ul>
+<li>in the realm asked for, else the one the package suggests (<code>realm</code>) if it exists, else home; a realm that does not exist is a problem ("create it first"), and root and commons hold no apps;</li>
+<li>under the name asked for, else the package's; a package can be installed many times;</li>
+<li>what it requires goes beside it, in the same realm; a collection or series it brings that the realm already has is a problem.</li>
+<li>Roles: an <strong>app</strong> owns something (collections, series, triggers, settings) or names a realm as packages first did; a <strong>library</strong> owns nothing.</li>
+</ul>
+</li>
+<li><strong>Ownership:</strong> a write to an app's collection or series comes from the app (<code>app:&lt;name&gt;</code>: its sessions, triggers, views and seed records) or is refused, pointing at the app's operations. You can force one (<code>?force=true</code> on a record write): it opens a decision ("Write it" / "Cancel"), and the write is recorded as <code>you forced</code>. Tokens and the assistant can't force.</li>
+<li><strong>Immutable code:</strong> an app's collection schemas, series and triggers change only with the app; you may switch its triggers off and on. Settings lists can't reach its code, since it isn't in them.</li>
+<li><strong>Sessions as an instance:</strong> templates an instance offers (from the realm, a view of its, or its trigger) start sessions that act as it: <code>instance</code> on the session, the automatic label <code>app:&lt;name&gt;</code>, its entries over the realm's, its memory notes, and its settings filled in. Subagents and side chats act as their parent does.</li>
+<li><strong>Upgrades and downgrades</strong> (<code>POST /api/v1/installs/{id}/upgrade</code> with <code>version</code>, and <code>package</code> for a fork): no merge. The decision lists what changes in its code; the options are Upgrade, Downgrade or Switch. A new schema that rejects records already there is a problem ("needs a migration"). Triggers follow the new version by name, keeping their webhook URLs and whether they're on; settings the new version drops lose their values.</li>
+<li><strong>Forks:</strong> <code>GET /api/v1/apps/export?realm=…&amp;instance=…&amp;fork=&lt;name&gt;</code> gives the package as a new one with <code>forked_from</code>; an instance switches to a fork of its package (or back).</li>
+<li><strong>Digests</strong> are checked once per head start for each installed package; a mismatch shows as a problem on the install.</li>
+<li><strong>Removing</strong> an instance deletes what it owns (collections and their records, series, triggers), after the decision; its sessions and the realm stay.</li>
+<li><strong>Apps installed before:</strong> at start, the copies of their code they wrote into their realm's lists are removed where they are still as installed; entries you had edited stay as the realm's own, and a decision asks whether to keep them or use the app's.</li>
+<li><strong>Not yet:</strong> app realms are not moved into home (step 7), and <code>exports</code> still only matters across realms, through a grant.</li>
+</ul>
+<h3 id="182-operations-step-4">18.2 Operations (step 4)</h3>
+<ul>
+<li><strong>In the manifest:</strong> <code>operations</code>, each with a <code>name</code>, a <code>description</code>, an <code>input</code> (a JSON Schema of an object) and one of:
+<ul>
+<li><code>write</code> {<code>collection</code> (one the package owns), <code>id</code> (<code>"$.record"</code>; none: a new record), <code>fields</code> (mapped from the input), <code>when</code> (a query filter the record must match first), <code>delete</code>};</li>
+<li><code>template</code> (one of the package's templates).</li>
+<li><code>kit</code> operations are declared in the type but refused until kits run from the head (docs/knowledge.md, step 3).</li>
+<li>Checked when the package is added: what it writes is its own, what it starts is its template.</li>
+</ul>
+</li>
+<li><strong>Calling</strong> (<code>operations.rs</code>): the input is checked against its schema; the work is done as the app, and who asked is kept with it (<code>app:&lt;instance&gt; op:&lt;name&gt; &lt;caller&gt;</code> in the record's history).
+<ul>
+<li>A write touches only the fields it names; a <code>when</code> that the record doesn't match is refused, saying so.</li>
+<li>A template operation starts the app's session (labelled <code>op:&lt;instance&gt;.&lt;name&gt;</code>) with the input as <code>{{input}}</code>.</li>
+</ul>
+</li>
+<li><strong>Callers:</strong>
+<ul>
+<li>the API: <code>GET /api/v1/apps/{realm}/{instance}/operations</code> and <code>POST …/operations/{name}</code> with <code>{input}</code> (a realm's token, in its realm);</li>
+<li>agents: the <code>app_call</code> tool, which with no arguments lists what there is to call in its realm, and reaches another realm only through a <code>call</code> grant on <code>op:&lt;instance&gt;.&lt;name&gt;</code>;</li>
+<li>triggers: the <code>operation</code> action, <code>{instance, operation, input}</code> with the event mapped in;</li>
+<li>views: an action with <code>operation</code> (<code>&lt;instance&gt;.&lt;name&gt;</code>, or the name alone for the collection's owner) and <code>input</code> mapped from the record (<code>"$.id"</code>, <code>"$.fields.x"</code>);</li>
+<li>the UI: an app's collection shows its operations as buttons, each a form made from its input's schema and filled from the record you pick.</li>
+</ul>
+</li>
+</ul>
+<h3 id="183-data-cards-provenance-and-contracts-step-5">18.3 Data cards, provenance and contracts (step 5)</h3>
+<ul>
+<li><strong>Migration <code>0043</code>:</strong> <code>collections.card</code>, <code>records.derived_from</code> and <code>records.provenance</code>.</li>
+<li><strong>The data card</strong> (<code>card</code> on a collection: <code>stability</code>, <code>sources</code>, <code>invariants</code>, <code>freshness</code>) comes with an app's collections in its package, and you describe the realm's own (<code>PATCH /api/v1/collections/{name}</code> with <code>card</code>, or Describe… on its page). The head fills in the owner's package version and the operations that change it. Field meanings stay in the schema's descriptions.</li>
+<li><strong>Where it shows:</strong>
+<ul>
+<li>an agent's first <code>records_query</code> or <code>records_get</code> of a collection carries <code>about</code>, the card in words (once per session);</li>
+<li>an internal collection's records carry a <code>note</code> for every reader but its app, in tool results and in the API's record pages;</li>
+<li>records mirrored for search include the card;</li>
+<li>the API, the collection's page and the realm explorer show it.</li>
+</ul>
+</li>
+<li><strong>Provenance:</strong> every write records who wrote the current version (<code>by</code>, and the app, its package and version, the session or operation, <code>forced</code>). <code>derived_from</code> (<code>item:&lt;id&gt;</code>, <code>record:&lt;collection&gt;/&lt;id&gt;</code>, a URL) is given by agents' <code>records_put</code>, mapped by write operations and triggers' write actions, and set by grant snapshots (<code>record:&lt;realm&gt;/&lt;collection&gt;/&lt;id&gt;</code>).</li>
+<li><strong>Contracts:</strong> an upgrade within a major version (a minor version below 1.0) can't narrow what the app publishes. That means a published collection losing a field, changing a field's type, dropping enum choices or requiring a new field, and a published operation's input the same way or the operation removed. Internal collections and operations may change. The decision names what in the realm uses what the app publishes: views, triggers, other apps' reads and grants.</li>
+</ul>
+<h3 id="184-claims-step-6">18.4 Claims (step 6)</h3>
+<ul>
+<li><strong>In the knowledge store</strong> (memex migration <code>0008</code>): every link is a claim with an <code>owner</code>.
+<ul>
+<li>Existing links and facts get one from their <code>made_by</code>: <code>session:</code> becomes <code>realm</code>, <code>app:&lt;name&gt;</code> stays an app, and anything else (<code>you</code>, <code>gmail</code>, a pipeline) is its own owner. A trigger does the same for writers that don't name an owner.</li>
+<li>Retracted claims move to <code>retracted_links</code>, out of the graph.</li>
+</ul>
+</li>
+<li><strong>Calls:</strong> <code>memex.claims.add</code> / <code>retract</code> / <code>retract_owner</code> / <code>list</code> and <code>memex.things.create</code>. The head stamps the owner and never takes it from the caller: you are <code>you</code>; an app's session is <code>app:&lt;name&gt;</code>; the realm's sessions and tokens are <code>realm</code>.
+<ul>
+<li>Only the owner retracts its claims.</li>
+<li>Each owner may add at most 20,000 claims an hour.</li>
+</ul>
+</li>
+<li><strong>API:</strong> <code>GET /api/v1/memex/claims</code> (<code>about</code> = <code>thing:&lt;key&gt;</code> or <code>item:&lt;id&gt;</code>, <code>label</code>, <code>owner</code>, <code>policy=all</code>, <code>same_as</code>), <code>POST /api/v1/memex/claims</code>, <code>DELETE /api/v1/memex/claims/{id}</code> and <code>POST /api/v1/memex/things</code>. Agents get <code>claims</code>, <code>claim_add</code>, <code>claim_retract</code> and <code>thing_create</code>.</li>
+<li><strong>Reader policies:</strong> a realm settings list, <code>claim_policies</code>: <code>{label, believe: [owners in order]}</code>, where <code>app:*</code> matches every app and <code>*</code> everyone else. Without a policy, yours come first, then everyone's.
+<ul>
+<li>The head applies them to <code>claims</code> lists, judging an owner's own label as the shared label it maps to.</li>
+<li>The graph view shows only believed relations.</li>
+</ul>
+</li>
+<li><strong>Identity:</strong> <code>same_as</code> and <code>not_same_as</code> claims; <code>same_as=true</code> follows the believed ones, transitively.</li>
+<li><strong>Vocabulary:</strong> a root settings list, <code>vocabulary</code>, seeded once with the core labels and item kinds. Packages declare their own labels (<code>vocabulary</code>, with <code>maps_to</code>). A claims list gives each claim what its label <code>means</code>, and a label filter finds owners' labels mapped to it.</li>
+<li><strong>Facts are claims:</strong> they carry an owner; anyone but their owner (or you) is refused when retiring or replacing one.</li>
+<li><strong>Removing an app</strong> retracts its claims.</li>
+<li><strong>The explorer</strong> shows a thing's claims with their owners, and whether the realm believes each.</li>
+<li><strong>Not yet:</strong> policies with conditions (a confidence threshold), briefs applying policies, and edges into other realms through grants.</li>
+</ul>
+<h3 id="185-moving-whats-installed-step-7">18.5 Moving what's installed (step 7)</h3>
+<ul>
+<li><strong>Apps in a realm made for them</strong> (before instances) are each offered a move, once: "Move it", with the realm to move into, or "Keep it where it is".
+<ul>
+<li>Moving installs it in the chosen realm and copies what it owns: records get new ids and keep their fields, their history and <code>derived_from</code> (<code>record:&lt;old realm&gt;/&lt;collection&gt;/&lt;id&gt;</code>), and series keep their points.</li>
+<li>It is then removed from where it was; that realm keeps its sessions and is yours to delete.</li>
+<li>Its webhook triggers get new URLs.</li>
+</ul>
+</li>
+<li><strong>Hand-off collections:</strong> a package's collection with <code>handoff: true</code> is made as the realm's, not the app's. It stays, and anything in the realm writes it, after the app is gone.</li>
+<li><strong>decks 1.2.0</strong> (<code>examples/apps/decks.json</code>): no realm of its own, so it installs in home by default. It has:
+<ul>
+<li><code>jobs</code>: internal, the decks being made;</li>
+<li><code>decks</code>: handed off, finished decks with their files;</li>
+<li><code>themes</code>: published, with an <code>add_theme</code> write operation;</li>
+<li><code>make</code> and <code>revise</code> template operations. <code>revise</code> takes any deck file.</li>
+</ul>
+</li>
+<li><strong>Libraries</strong> have been instances with no collections since step 1.</li>
+</ul>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/apps.md">docs/apps.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-the-problem">1. The problem</a></li><li><a href="#2-principles">2. Principles</a></li><li><a href="#3-words">3. Words</a></li><li><a href="#4-realms">4. Realms</a></li><li><a href="#5-instances">5. Instances</a></li><li><a href="#6-ownership">6. Ownership</a></li><li><a href="#7-operations">7. Operations</a></li><li><a href="#8-data-that-explains-itself">8. Data that explains itself</a></li><li><a href="#9-the-knowledge-graph-claims">9. The knowledge graph: claims</a></li><li><a href="#10-handoff">10. Handoff</a></li><li><a href="#11-many-tenants">11. Many tenants</a></li><li><a href="#12-upgrades-and-downgrades">12. Upgrades and downgrades</a></li><li><a href="#13-what-this-replaces">13. What this replaces</a></li><li><a href="#14-upgrading-whats-installed">14. Upgrading what's installed</a></li><li><a href="#15-build-order">15. Build order</a></li><li><a href="#16-decisions">16. Decisions</a></li><li><a href="#17-open-questions">17. Open questions</a></li><li><a href="#18-as-built">18. As built</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>

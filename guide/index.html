@@ -106,15 +106,22 @@ c6w run
 </li>
 </ul>
 <h3 id="upgrades">Upgrades</h3>
-<p>A new version of carbon6 upgrades its databases when it starts: the head's (<code>c6h.db</code>) and the memex's (<code>memex.db</code>). Workers' journals need no upgrading.</p>
+<p>A new version of carbon6 upgrades its databases when it starts: the head's (<code>c6h.db</code>) and its knowledge's (<code>knowledge/memex.db</code>, one per realm). Workers' journals need no upgrading.</p>
 <ul>
 <li><strong>A backup first:</strong> the database is copied to <code>backups/</code> next to it, named with the versions and the time, before anything changes. Backups are kept until you delete them.</li>
 <li><strong>All or nothing:</strong> if a step fails, or a check finds data missing afterwards, the backup is put back and carbon6 refuses to start, saying why. The database is as it was, so the previous version still runs on it.</li>
 <li><strong>Nothing lost silently:</strong> every table must keep its rows, unless the upgrade says it moves or removes them.</li>
-<li><strong>Try it first:</strong> <code>c6h upgrade --check</code> (and <code>c6m upgrade --check</code>) upgrades a copy and prints what would change, leaving your database untouched. <code>c6h upgrade</code> upgrades without starting the head.</li>
+<li><strong>Try it first:</strong> <code>c6h upgrade --check</code> upgrades a copy and prints what would change, leaving your database untouched. <code>c6h upgrade</code> upgrades without starting the head.</li>
 <li><strong>History:</strong> <strong>Settings → System</strong> lists each upgrade with what changed and where its backup is.</li>
 <li><strong>Going back:</strong> stop carbon6 and put the backup in place of the database.</li>
 </ul>
+<p><strong>From 0.2 to 0.3:</strong> the memex is part of the head now, and reading files and syncing Google run in kits on a worker with Docker or Podman.</p>
+<ol>
+<li><strong>Stop and remove c6m first:</strong> <code>brew services stop c6m &amp;&amp; brew uninstall c6m</code> (Ubuntu: <code>sudo systemctl disable --now c6m &amp;&amp; sudo apt remove c6m</code>). The head takes its knowledge in, moving the folder without copying it, the first time it starts with c6m stopped.</li>
+<li><strong>Upgrade the head and workers</strong> (<code>brew upgrade c6h c6w</code>, then <code>brew services restart c6h c6w</code>), and keep Docker Desktop (or Podman) running on at least one worker.</li>
+<li><strong>Approve "Install the kit c6-extract?"</strong> under Decisions. Mail kept before is then read again in the background, once: about an hour per 200,000 messages on a laptop. Until a message has been read again, its thread shows its text without the HTML.</li>
+<li><strong>Google accounts</strong> synced by the memex before move into the gmail, google-calendar and google-contacts apps on their own (Settings → Mail &amp; calendar).</li>
+</ol>
 <h3 id="labels">Labels</h3>
 <p>Sessions carry labels, which group them and decide which settings apply.</p>
 <ul>
@@ -161,10 +168,10 @@ c6w run
 <li><strong>Scope:</strong> policies apply to subagents' calls too. Claude Code sessions aren't covered.</li>
 </ul>
 <h3 id="memex">Memex</h3>
-<p>The memex is your knowledge store: a separate service, <code>c6m</code>, on the same fabric as the workers. It can run on any machine (this one is fine). Its design, and what comes next (documents and papers, Gmail, calendar and contacts, photos and videos), is in <a href="/docs/memex/">docs/memex.md</a>.</p>
+<p>The memex is your knowledge store, part of the head: items, a graph of things with the claims made about them, and search, one database per realm under the head's <code>knowledge/</code> folder. Its design, and what comes next (documents and papers, Gmail, calendar and contacts, photos and videos), is in <a href="/docs/memex/">docs/memex.md</a>.</p>
 <ul>
 <li>
-<p><strong>Connecting one:</strong> <strong>Settings → Memex → Create an enrollment token</strong>, then on the machine that should hold it, <code>c6m enroll &lt;token&gt;</code> and <code>c6m run</code>. It keeps its store under its state folder.</p>
+<p><strong>Claims:</strong> every link in the graph is a claim with an owner (you, an app, the realm's agents, or a program such as the mail sync). Anyone may add their own and only the owner retracts it; each realm's reader policies (<strong>Settings → claim_policies</strong>) say whose to believe, yours first by default. See <a href="/docs/apps/">docs/apps.md</a> §9.</p>
 </li>
 <li>
 <p><strong>carbon6 → memex:</strong></p>
@@ -174,12 +181,12 @@ c6w run
 <li>pages your agents read with the browser or web fetch;</li>
 <li>your memory notes.</li>
 </ul>
-<p>Each comes with the session's labels, which become things in the memex's graph (<code>client:acme</code>, <code>host:web1</code>, <code>repo:…</code>). Updates queue on the head while no memex is connected.</p>
+<p>Each comes with the session's labels, which become things in the memex's graph (<code>client:acme</code>, <code>host:web1</code>, <code>repo:…</code>). Updates queue on the head until the knowledge store takes them.</p>
 </li>
 <li>
 <p><strong>memex → carbon6:</strong></p>
 <ul>
-<li><strong>Briefs:</strong> a new session starts with a brief from the memex about its labels and its first message (notes, recent sessions about the same things, what else matches), in place of the memory section.</li>
+<li><strong>Briefs:</strong> a new session starts with a brief from the memex about its labels and its first message (recent sessions about the same things, facts, what else matches), after its memory notes.</li>
 <li><strong>Tools:</strong> agents get <code>memex_search</code> (keywords and meaning), <code>memex_get</code> (an item in full, or a thing with its notes, items and related things) and <code>memex_note</code>.</li>
 </ul>
 </li>
@@ -187,10 +194,13 @@ c6w run
 <p><strong>@-mentions:</strong> typing <code>@</code> in a message also offers things from the memex (people, clients, hosts, topics); <code>@memex:client:acme</code> attaches what the memex knows about it to the message.</p>
 </li>
 <li>
-<p><strong>Documents and papers:</strong> add files on the Memex page (<strong>Add files</strong>) or keep folders in sync (<strong>Settings → Memex folders</strong>, on the memex's machine).</p>
+<p><strong>Documents and papers:</strong> add files on the Memex page (<strong>Add files</strong>) or keep folders in sync (<strong>Settings → Memex folders</strong>: a folder on a worker, read where it is).</p>
 </li>
 <li>
-<p><strong>Bringing in data from other tools:</strong> <code>memex.ingest</code> (on <code>POST /api/v1/memex/rpc</code>, with an API token) takes batches of items typed by MIME type: mail as <code>message/rfc822</code> (an old archive, for example), and documents as PDF, Word, Markdown, text or HTML. Each item comes back created, updated, duplicate or rejected with the reason. <code>memex.types</code> lists what each type accepts. Imported mail is threaded and searchable like synced mail, is never written back to Gmail, and becomes the synced copy if Gmail later has the same message. Design: <a href="/docs/memex/">docs/memex.md</a> §4.5.</p>
+<p><strong>Reading files:</strong> the head never parses mail, documents, photos or videos itself. The <strong>c6-extract</strong> kit does, on a worker with Docker or Podman, sandboxed with no network. The first time something needs reading you're asked to approve it (Decisions), and the worker builds it (a few minutes, once). Until then, files wait (Memex status shows how many). Plain text and Markdown need no kit. Design: <a href="/docs/knowledge/">docs/knowledge.md</a> §4.</p>
+</li>
+<li>
+<p><strong>Bringing in data from other tools:</strong> <code>memex.ingest</code> (on <code>POST /api/v1/memex/rpc</code>, with an API token) takes batches of items typed by MIME type: mail as <code>message/rfc822</code> (an old archive, for example), and documents as PDF, Word, Markdown, text or HTML. Each item comes back created, updated, duplicate or rejected with the reason (or queued, while no worker has read it within a minute). <code>memex.types</code> lists what each type accepts. Imported mail is threaded and searchable like synced mail, is never written back to Gmail, and becomes the synced copy if Gmail later has the same message. Design: <a href="/docs/memex/">docs/memex.md</a> §4.5.</p>
 <ul>
 <li><strong>Formats:</strong> PDF, Word (.docx), Markdown, HTML and text are read.</li>
 <li><strong>Papers</strong> are recognized, with their title, authors, DOI or arXiv id, and the papers they cite. Cited papers become things too, so the memex holds a citation graph. For example, a paper's page lists the papers in your memex that cite it.</li>
@@ -208,22 +218,23 @@ c6w run
 </li>
 </ul>
 <h3 id="mail-calendar-and-contacts">Mail, calendar and contacts</h3>
-<p>With a memex connected, carbon6 is a client for your Gmail and Google Workspace accounts (☰ → <strong>Mail</strong>, <strong>Calendar</strong>, <strong>Contacts</strong>).</p>
+<p>carbon6 is a client for your Gmail and Google Workspace accounts (☰ → <strong>Mail</strong>, <strong>Calendar</strong>, <strong>Contacts</strong>). Three apps do the syncing, installed in home: <strong>gmail</strong>, <strong>google-calendar</strong> and <strong>google-contacts</strong>. They run on the <strong>google</strong> kit on a worker with Docker or Podman, which reaches only Google. Their packages are part of carbon6, and an IMAP or CalDAV app would be written the same way. Design: <a href="/docs/knowledge/">docs/knowledge.md</a> §6.</p>
 <ul>
 <li>
 <p><strong>Setup</strong> (<strong>Settings → Mail &amp; calendar</strong>):</p>
 <ul>
+<li><strong>Install the apps</strong> (you approve each under Decisions).</li>
 <li>Create an OAuth client in your Google Cloud project (Web application, with the redirect URI shown).</li>
 <li>Enable the Gmail, Calendar and People APIs.</li>
 <li>Set the app to "In production", or "Internal" for Workspace.</li>
-<li>Paste the client ID and secret, then <strong>Add Google account</strong>.</li>
+<li>Paste the client ID and secret (they become home's secrets <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code>), then <strong>Add Google account</strong>: one sign-in for the three apps.</li>
 </ul>
-<p>The head keeps the sign-in encrypted; the memex gets short-lived access only.</p>
+<p>The head keeps the sign-in encrypted; the apps' syncs get short-lived access tokens only. A head that synced Google itself before moves your accounts, client and everything synced into the apps when it starts, so nothing is fetched again.</p>
 </li>
 <li>
 <p><strong>Mail:</strong></p>
 <ul>
-<li><strong>Import:</strong> your whole mailbox is imported, newest first and resumable, then kept in sync every minute. Labels, read state, archive and drafts sync both ways.</li>
+<li><strong>Import:</strong> your whole mailbox is imported, newest first and resumable, then kept in sync every two minutes. Labels, read state, archive and drafts sync both ways.</li>
 <li><strong>Views:</strong> Inbox, <strong>Needs reply</strong> (someone else wrote last, to you directly, not a list), <strong>Waiting</strong> (you wrote last, over two days ago), Starred, Sent, Drafts, Archive, Spam, Trash, and your labels.</li>
 <li><strong>Reading:</strong> conversations, with HTML sandboxed and remote images off until you allow them.</li>
 <li><strong>Writing:</strong> Markdown compose, reply and reply all, attachments, drafts, <strong>send later</strong>, and <strong>undo</strong> (messages wait 10 seconds).</li>
