@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Apps and data · carbon6</title><meta name="description" content="Proposed: apps as instances in realms you choose, data open to read and written only by its owner, and code that changes only by upgrade."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/apps/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Apps and data · carbon6"><meta property="og:description" content="Proposed: apps as instances in realms you choose, data open to read and written only by its owner, and code that changes only by upgrade."><meta property="og:url" content="https://carbon6.dev/docs/apps/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/apps/" aria-current="page">Apps and data</a></li><li><a href="/docs/knowledge/">Knowledge in the head</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Apps: instances, owned data and open reading — Design</h1><div><p>Status: proposed (2026-10-16). Nothing here is built. It changes what docs/os.md §5 and docs/packages.md describe; §13 lists what it replaces. Where knowledge is kept, and what becomes of the memex, is in docs/knowledge.md.</p>
+<h2 id="1-the-problem">1. The problem</h2>
+<p>Today an app <em>is</em> a realm (os.md §5): installing one creates a realm holding its code, its sessions and its data, and other realms reach in only through grants. A realm decides three things at once:</p>
+<ol>
+<li><strong>Who can see data,</strong> which is a question of trust: one business shouldn't see another's.</li>
+<li><strong>Who can change data,</strong> which is a question of consistency: only the CRM knows what makes a relationship valid.</li>
+<li><strong>Where an app's code lives.</strong></li>
+</ol>
+<p>Tying the three together goes wrong for the apps we want:</p>
+<ul>
+<li><strong>A service (decks).</strong> A deck you make lands in the <code>decks</code> realm, out of your session list and away from your knowledge. Once made, it should be yours and need nothing more from decks.</li>
+<li><strong>A processor (CRM).</strong> It reads input (mail, business context), keeps working data of its own (summaries, scores), and publishes results (relationships) that add context to the input. As a realm it can only see its input through grants, and its results are hidden from the realm the input came from.</li>
+<li><strong>A mirror (Gmail).</strong> It keeps a copy of data whose source of truth is elsewhere, and must be the only writer of that copy. Today it's built into the memex rather than written as an app (docs/knowledge.md §6).</li>
+<li><strong>Many tenants.</strong> Running unrelated businesses, you want a CRM for each, each fed from one business's data, with separate results. Today each is a realm wired up with its own grants.</li>
+<li><strong>Silos.</strong> Every app realm hides its data by default. But nobody knows in advance which app's data will be useful to which agent; that's the point of the knowledge graph.</li>
+</ul>
+<p>And app realms can be edited in Settings, so a deployed app drifts from the version installed, and upgrades need a three-way merge.</p>
+<h2 id="2-principles">2. Principles</h2>
+<ul>
+<li><strong>Realms are trust domains, drawn by you.</strong> Home, each business, anything that must stay apart. Installing an app never creates one.</li>
+<li><strong>Reading is open within a realm.</strong> Every agent in a realm can read every collection in it, and every piece of data describes itself well enough for an agent written by anyone to use it.</li>
+<li><strong>Writing is owned.</strong> Data belongs to whoever keeps its consistency: an app instance, or the realm itself. Only the owner changes it, directly or through the operations it publishes.</li>
+<li><strong>The graph doesn't judge.</strong> Links between things are claims, each with an owner; anyone may add their own, and readers decide whose to believe (9).</li>
+<li><strong>Code is immutable.</strong> A package version never changes. An instance changes only by upgrading, downgrading or switching to a fork, and is configured through settings its package declares.</li>
+</ul>
+<p>Unix works this way: <code>/etc/passwd</code> is readable by every program, and only <code>passwd</code> and <code>chsh</code> change it, because only they know its rules.</p>
+<h2 id="3-words">3. Words</h2>
+<ul>
+<li><strong>Realm:</strong> a trust domain (os.md §3), unchanged except that apps no longer get one each.</li>
+<li><strong>Package:</strong> immutable code: a manifest and its files, at a version (docs/packages.md).</li>
+<li><strong>Instance:</strong> a package version installed in a realm, with a name (the package's, by default), its own identity, its settings and the data it owns. One package can have many instances: <code>crm</code> in <code>biz-a</code> and <code>crm</code> in <code>biz-b</code>, or two in one realm with different names.</li>
+<li><strong>Owner:</strong> what may write a collection: an instance, or the realm (for collections you make by hand).</li>
+<li><strong>Operation:</strong> a write path an instance publishes, with typed input, that keeps its data consistent (7).</li>
+<li><strong>Data card:</strong> what a collection says about itself, so any agent can interpret it (8).</li>
+<li><strong>Published / internal:</strong> a collection's stability. Published is a contract; internal is readable but may change without notice.</li>
+<li><strong>Handoff:</strong> output an instance makes for whoever asked, owned by the requester from then on (10).</li>
+<li><strong>Thing:</strong> a node in the realm's graph: a person, an organization, a place, an event, a topic (9.1).</li>
+<li><strong>Claim:</strong> an edge or a fact, with its owner and provenance (9.2).</li>
+<li><strong>Reader policy:</strong> which owners' claims a reader believes, per label (9.3).</li>
+</ul>
+<h2 id="4-realms">4. Realms</h2>
+<ul>
+<li><strong>You create realms</strong> for real boundaries. home is where you start; a realm per business is the multi-tenant case (11).</li>
+<li><strong>Grants stay</strong> the way data crosses realms (os.md §3.7): read, append, snapshot and call.</li>
+<li><strong>Policies and budgets</strong> of a realm apply to everything in it, instances' sessions included. An instance can't override them.</li>
+<li><strong>An untrusted package</strong> is installed in a realm of its own, which you create for it, with only the grants you choose. No other mechanism is needed: a realm is the trust boundary, wherever the package is installed.</li>
+</ul>
+<h2 id="5-instances">5. Instances</h2>
+<h3 id="51-installing">5.1 Installing</h3>
+<p>Installing a package version in a realm is one decision, listing:</p>
+<ul>
+<li><strong>What it reads</strong> in that realm (5.2), and grants it needs from other realms.</li>
+<li><strong>What it owns:</strong> the collections it creates (6).</li>
+<li><strong>What it publishes:</strong> its operations, and the skills and templates it offers the realm's sessions.</li>
+<li><strong>What it runs on its own:</strong> its triggers.</li>
+<li><strong>Kits,</strong> secrets and workers, as packages ask for them today (packages.md §4).</li>
+</ul>
+<p>Approval is per instance, so installing the same package in another realm asks again.</p>
+<h3 id="52-what-an-instance-reads">5.2 What an instance reads</h3>
+<p>A package declares what it reads, and you approve it at install, the way Android asks for an app's permissions:</p>
+<pre><code class="language-json">"reads": {
+  "items": { "kinds": ["email", "person"] },
+  "collections": ["contacts.*"],
+  "realms": []
+}
+</code></pre>
+<ul>
+<li><strong>Within its realm:</strong> item kinds and things in the graph, and collections by name, or <code>&lt;instance&gt;.*</code> for everything an instance owns. Files on workers aren't covered: realms don't isolate them (os.md §3.9).</li>
+<li><strong>Other realms:</strong> only through grants, which the install asks for as today.</li>
+<li><strong>What this limits</strong> is what the <em>instance's</em> sessions can see. It never hides the instance's own data from anyone else in the realm: that stays open (2).</li>
+</ul>
+<h3 id="53-sessions">5.3 Sessions</h3>
+<p>An instance's sessions (from its templates, triggers and operations) run in its realm.</p>
+<ul>
+<li><strong>Identity:</strong> they act as the instance, <code>app:&lt;instance&gt;</code>, which is what history records (os.md §4.1) and what ownership checks (6).</li>
+<li><strong>Labels:</strong> <code>app:&lt;instance&gt;</code>, so they can be found and filtered. They show in the realm's lists.</li>
+<li><strong>Configuration:</strong> root's, then the realm's, then the instance's code. In its own sessions the instance's skills, agents and templates win over the realm's, because they are its logic. The realm's policies and budgets always apply.</li>
+<li><strong>What it sees:</strong> what 5.2 allows, plus everything it owns.</li>
+</ul>
+<h3 id="54-settings">5.4 Settings</h3>
+<p>What a package lets you configure, it declares as a JSON Schema:</p>
+<pre><code class="language-json">"settings": {
+  "type": "object",
+  "properties": {
+    "check_in_weeks": { "type": "integer", "default": 6, "description": "Default cadence for a new relationship" },
+    "voice": { "type": "string", "description": "How check-ins should sound" }
+  }
+}
+</code></pre>
+<ul>
+<li><strong>Values belong to the instance.</strong> They are state, so upgrades keep them; a new setting takes its default, and a dropped one loses its value.</li>
+<li><strong>The form</strong> is generated from the schema (os.md §10).</li>
+<li><strong>Prompts read them</strong> as <code>{{settings.&lt;name&gt;}}</code>, and the instance's sessions get them in their brief.</li>
+</ul>
+<h3 id="55-code-is-immutable">5.5 Code is immutable</h3>
+<ul>
+<li><strong>The head refuses writes</strong> to an instance's code: its skills, agents, commands, templates, workflows, hooks, triggers, views, operations and collection schemas, whoever asks (Settings, the assistant, agents, tokens).</li>
+<li><strong>Settings shows an instance's code read-only,</strong> with the ways to change it: its settings (5.4), an upgrade (12), or a fork (5.6).</li>
+<li><strong>The digest is checked.</strong> An instance keeps its package's digest; the head compares the code it holds with it at start and before an upgrade, and reports any difference.</li>
+<li><strong>What an instance offers the realm</strong> (skills, templates) can be overridden in the realm, for the realm's own sessions: a skill with the same name and labels in the realm wins there, as realms override what they inherit (os.md §3.3). The instance's own sessions keep using its own.</li>
+</ul>
+<h3 id="56-forks">5.6 Forks</h3>
+<p>To change an app beyond its settings, export it as a new package (<code>crm-acme</code>, with <code>"forked_from": "crm"</code>), change it, and install that. A fork is a different app with its own versions. An instance can be switched to a fork of its package the way it's upgraded (12), keeping its name, settings and data.</p>
+<h2 id="6-ownership">6. Ownership</h2>
+<p>Every collection has an owner: an instance, or the realm.</p>
+<table><thead><tr><th></th><th>Reads</th><th>Writes</th></tr></thead><tbody>
+<tr><td><strong>The owner</strong> (its sessions)</td><td>✓</td><td>✓, directly (<code>records_put</code>, <code>records_delete</code>)</td></tr>
+<tr><td><strong>Others in the realm:</strong> you, the assistant, the realm's sessions, other instances (within their reads), the realm's tokens</td><td>✓</td><td>only through the owner's operations (7)</td></tr>
+<tr><td><strong>Other realms</strong></td><td>through a grant</td><td>through a <code>call</code> grant on an operation</td></tr>
+</tbody></table>
+<ul>
+<li><strong>Realm-owned collections</strong> (ones you make by hand, and handoffs, 10) are written by anything in the realm, as collections are today.</li>
+<li><strong>Claims</strong> (9.2) follow the same rule: an owner writes and retracts only its own.</li>
+<li><strong>Record triggers</strong> fire on every write, whoever made it.</li>
+<li><strong>Forcing a write.</strong> You can write to an instance's collection directly, as yourself. It's a decision that names the collection's invariants from its data card (8), and it's recorded in the history as forced. The assistant and agents can't force.</li>
+</ul>
+<h2 id="7-operations">7. Operations</h2>
+<p>An operation is how anyone but the owner changes the owner's data. The package declares it:</p>
+<pre><code class="language-json">"operations": [
+  {
+    "name": "set_cadence",
+    "description": "Set how often to be in touch with someone",
+    "input": { "type": "object", "required": ["relationship", "weeks"], "properties": { "relationship": { "type": "string" }, "weeks": { "type": "integer", "minimum": 1, "maximum": 52 } } },
+    "write": { "collection": "relationships", "id": "$.relationship", "fields": { "cadence_weeks": "$.weeks" } }
+  },
+  {
+    "name": "merge_people",
+    "description": "Two relationships are the same person: merge them and their touchpoints",
+    "input": { "type": "object", "required": ["keep", "merge"], "properties": { "keep": { "type": "string" }, "merge": { "type": "string" } } },
+    "template": "merge-people"
+  }
+]
+</code></pre>
+<ul>
+<li><strong>Three kinds:</strong>
+<ul>
+<li><strong>write:</strong> a record update mapped from the input, the way trigger actions map events (os.md §4.3). It runs at once, in the head, and is checked against the schema. It can only touch the fields it names, and can require a condition on the record first (a JSON filter, os.md §4.1).</li>
+<li><strong>template:</strong> a session of the instance, with the input as <code>{{input}}</code>, for changes that need judgment. The caller gets the session's id; the result arrives when it ends.</li>
+<li><strong>kit:</strong> a kit tool of the instance, run at once with mapped arguments, for changes made outside carbon6 (sending mail, an RSVP). Its output is ingested as the instance (docs/knowledge.md §6.2).</li>
+</ul>
+</li>
+<li><strong>Callers:</strong> agents with <code>app_call {instance, operation, input}</code>; the UI, whose forms for an instance's collections call its operations; views' actions; triggers (an <code>operation</code> action); other realms through a <code>call</code> grant on <code>op:&lt;instance&gt;.&lt;name&gt;</code>.</li>
+<li><strong>A published operation is a contract,</strong> like a published collection (8): changing its input incompatibly, or removing it, is a breaking change (12).</li>
+</ul>
+<h2 id="8-data-that-explains-itself">8. Data that explains itself</h2>
+<p>Every collection has a <strong>data card</strong>, and every record carries its <strong>provenance</strong>, so an agent that has never seen the app can use its data, and knows what it may rely on.</p>
+<p><strong>The data card</strong> (in the package for an instance's collections; written by you, with the assistant's help, for the realm's):</p>
+<ul>
+<li><strong>What it is:</strong> a description, and per field what it means, its units and its examples (in the schema's descriptions).</li>
+<li><strong>Owner and stability:</strong> the instance and package version, and <code>published</code> or <code>internal</code>.</li>
+<li><strong>Where it comes from:</strong> its inputs (item kinds, collections, operations) and how records are derived from them, in words.</li>
+<li><strong>Invariants,</strong> in words: what must stay true ("a relationship's last contact is the date of its newest touchpoint"). Readers learn what the data guarantees; writers see why they must go through operations.</li>
+<li><strong>Freshness:</strong> how and how often it's updated.</li>
+<li><strong>Operations</strong> that change it.</li>
+</ul>
+<p><strong>Provenance on each record:</strong> the instance and version that wrote it, the session or operation, and <strong>derived-from links</strong> to the items and records it came from (an email, a meeting note). os.md §4.1's history already keeps who changed what; derived-from is new.</p>
+<p><strong>Where agents see it:</strong> <code>records_query</code> and <code>records_get</code> return the card the first time a session reads a collection; search results that include records carry the card's summary; the API and the realm explorer show it.</p>
+<p><strong>Internal collections</strong> are readable like any other. Tool results and the API mark them: <em>internal to <code>crm</code>: may change without notice; build on its published collections instead.</em> Nothing is hidden, and nothing depends on them by accident.</p>
+<h2 id="9-the-knowledge-graph-claims">9. The knowledge graph: claims</h2>
+<p>The graph is where data from every owner meets. It stores claims and doesn't decide which are true; the meaning is in the eye of the reader. This is how RDF's named graphs and Wikidata's claims with references work.</p>
+<h3 id="91-things">9.1 Things</h3>
+<ul>
+<li><strong>Things are the realm's shared nodes:</strong> people, organizations, places, events, topics. They belong to the realm, not to an app.</li>
+<li><strong>Anyone may create one.</strong> Gmail and the CRM may each create "Alice". That two things are the same is a claim too (9.2).</li>
+</ul>
+<h3 id="92-claims">9.2 Claims</h3>
+<ul>
+<li><strong>An edge</strong> is <code>(from, label, to, owner)</code>; <strong>a fact</strong> is <code>(thing, attribute, value, owner)</code>. Each carries provenance: the owner's package version, the session or operation that made it, when, an optional confidence, and derived-from links to its evidence (8).</li>
+<li><strong>Anyone who can read both ends may add their own claims.</strong> Gmail asserts that a message was <code>sent_by</code> a person; a contact-matching app may assert the same edge, or a different one. Both stand.</li>
+<li><strong>Only the owner retracts or changes its claims.</strong> Disagreeing means adding your own claim, never deleting another's.</li>
+<li><strong>You are an owner too.</strong> A correction is a claim you make. Default policies rank you first (9.3), so you never edit an app's data; you outrank it.</li>
+<li><strong>Identity is claims:</strong> <code>same_as</code> and <code>not_same_as</code> between things, owned like any edge. Merging people stops being a judgment the store makes; whoever resolves identities writes claims, and readers choose whose to follow.</li>
+<li><strong>A record's links</strong> to things and items (os.md §4.1) are edges owned by the record's owner.</li>
+<li><strong>Edges into another realm</strong> exist only under a grant; a reader without one doesn't see them.</li>
+<li><strong>Removing an instance</strong> retracts its claims, after offering an export. Each owner has a write quota, so a faulty app can't flood the graph.</li>
+</ul>
+<h3 id="93-reader-policies">9.3 Reader policies</h3>
+<p>Most readers (search, briefs, an agent asking "who sent this?") don't want to weigh every claim each time. So a realm states default policies, per label:</p>
+<pre><code class="language-json">{ "label": "sent_by", "believe": ["you", "gmail", "*"] }
+{ "label": "same_as", "believe": ["you", "google-contacts", "people-linker"] }
+</code></pre>
+<ul>
+<li><strong>A policy is configuration,</strong> in the realm's settings, and every reader can override it, per query or per agent.</li>
+<li><strong>With no policy,</strong> a reader gets every claim, with its owner, and decides.</li>
+<li><strong>Ignoring an owner</strong> entirely is a policy too.</li>
+<li><strong>Search, briefs and the graph views</strong> apply the realm's defaults unless asked otherwise.</li>
+</ul>
+<h3 id="94-shared-vocabulary">9.4 Shared vocabulary</h3>
+<p>Claims are only comparable if readers can tell which labels mean the same thing.</p>
+<ul>
+<li><strong>A small vocabulary in root,</strong> readable by every realm: labels (<code>sent_by</code>, <code>sent_to</code>, <code>about</code>, <code>mentions</code>, <code>part_of</code>, <code>attended</code>, <code>same_as</code>, …, the core set of memex.md §4.3) and item kinds (<code>email</code>, <code>event</code>, <code>contact</code>, <code>document</code>, <code>photo</code>, …), each with its meaning and schema.</li>
+<li><strong>An owner describes its labels</strong> in its data card, and maps each to a shared one where it fits. Readers find equivalent claims by different owners through the mapping; labels with no mapping are still readable, with the owner's description.</li>
+<li><strong>The vocabulary grows by publishing,</strong> like commons (os.md §3.7): a realm proposes a label, and it's added when you accept it.</li>
+</ul>
+<h3 id="95-enrichment">9.5 Enrichment</h3>
+<p>A processor makes its input richer without changing it:</p>
+<ul>
+<li><strong>Results link to what they're about.</strong> A CRM relationship is linked to the person thing, so the person now shows the relationship, cadence and last contact, in the graph, in search and in briefs.</li>
+<li><strong>Results link to what they came from.</strong> A touchpoint's derived-from links point at the email, so any agent can check the evidence.</li>
+<li><strong>The input is never written.</strong> The CRM can't change mail or contacts; it adds claims and records it owns, beside them.</li>
+</ul>
+<h2 id="10-handoff">10. Handoff</h2>
+<p>A service makes something for whoever asked and keeps no hold on it.</p>
+<ul>
+<li><strong>The output belongs to the requester's realm.</strong> Files are published as the realm's Outputs; records go in realm-owned collections. They carry provenance (made by <code>decks</code> 1.2, from this brief, in this session) but no write lock.</li>
+<li><strong>The service keeps only what it needs.</strong> decks owns an internal <code>jobs</code> collection (brief, outline, stage) while it works; once the deck is delivered, the job is history.</li>
+<li><strong>Later changes don't need the service.</strong> Anyone can edit the delivered deck. decks' <code>revise</code> operation takes any deck file and notes, whether decks made it or not.</li>
+</ul>
+<h2 id="11-many-tenants">11. Many tenants</h2>
+<ul>
+<li><strong>One instance per business realm.</strong> <code>crm</code> in <code>biz-a</code> reads biz-a's mail and contacts and owns biz-a's relationships; <code>crm</code> in <code>biz-b</code> the same for biz-b. The realm boundary keeps them apart; neither instance is configured to be separate.</li>
+<li><strong>One package, one build.</strong> Instances share their package version's code and kits; each has its own settings and data.</li>
+<li><strong>Different versions:</strong> each instance upgrades on its own, so one business can try a new version first.</li>
+<li><strong>Across tenants on purpose:</strong> an instance in one realm (a portfolio view in home, say) reads the businesses' published collections through grants you make.</li>
+</ul>
+<h2 id="12-upgrades-and-downgrades">12. Upgrades and downgrades</h2>
+<ul>
+<li><strong>No merge.</strong> Code can't drift (5.5), so an upgrade replaces version A's code with B's, and a downgrade does the reverse. The previous version stays in the registry for rollback.</li>
+<li><strong>Owned schemas</strong> follow os.md §4.1: an additive change applies at once; anything else needs a migration, approved as a decision. A downgrade that would need one asks the same way, or is refused when the package gives none.</li>
+<li><strong>Contracts.</strong> Changing a published collection's schema incompatibly, or a published operation's input, or removing either, is a breaking change: the package's major version must change, and the upgrade decision lists what depends on it in the realm (views, triggers, other instances' reads, grants). Internal collections carry no contract.</li>
+<li><strong>Approval</strong> asks again only for what grew: reads, grants, kits' permissions, triggers.</li>
+</ul>
+<h2 id="13-what-this-replaces">13. What this replaces</h2>
+<ul>
+<li><strong>An app is a realm</strong> (os.md §5): apps become instances in realms you choose.</li>
+<li><strong>The three-way upgrade</strong> (os.md §5.2a) and its conflict decisions.</li>
+<li><strong>Editing an app's configuration</strong> in Settings and through the API.</li>
+<li><strong>Libraries copied into the requiring realm</strong> (packages.md §3): a library is a package with no collections, installed as an instance whose skills and templates it offers the realm.</li>
+<li><strong>Template grants for apps requiring apps</strong> (packages.md §6): a package that requires another uses an instance of it in the same realm (installed with it, or one already there) through its operations, or one in another realm through a <code>call</code> grant.</li>
+<li><strong>The memex as judge of the graph:</strong> its automatic merges and links become claims by system packages, and its review queue becomes decisions that assert your claims (docs/knowledge.md §7).</li>
+<li><strong>The tool and daemon kinds</strong> of this doc's first draft: ownership decides who writes, not a kind of app.</li>
+<li><strong>Unchanged:</strong> realms, grants, policies and budgets; kits and their sandbox; the registry, digests and install decisions; collections, decisions, triggers, series and views.</li>
+</ul>
+<h2 id="14-upgrading-whats-installed">14. Upgrading what's installed</h2>
+<ul>
+<li><strong>Each app realm</strong> (decks, today) gets a decision: move the app into a realm you choose (home, say) as an instance there, or keep it where it is as an instance in its own realm.</li>
+<li><strong>Moving:</strong> sessions can't move (os.md §3.5), so the old realm keeps them, readable. Its records are copied to the new instance's collections with their history and where they came from. The old realm is then yours to delete, which asks as it does today.</li>
+<li><strong>Drift:</strong> the head compares each app's configuration with its install's digest. If you had edited it, a decision offers to export your edits as a fork and install that, or to drop them.</li>
+<li><strong>Collections you made by hand</strong> become realm-owned, with data cards to write (the assistant drafts them, for you to approve).</li>
+<li><strong>decks 1.2.0:</strong> a <code>make</code> operation (template), internal <code>jobs</code>, deck files and a realm-owned <code>decks</code> record as handoff, a shared <code>themes</code> collection published by the instance, and <code>revise</code> taking any deck file.</li>
+</ul>
+<h2 id="15-build-order">15. Build order</h2>
+<ol>
+<li><strong>Ownership:</strong> owners on collections, writes refused to non-owners, forced writes as decisions, and the instance identity in history.</li>
+<li><strong>Instances:</strong> installing a package in a realm you choose, by name, more than once; reads approved at install; sessions as the instance; settings.</li>
+<li><strong>Immutable code:</strong> read-only instance code, the digest check, upgrades and downgrades without a merge, forks.</li>
+<li><strong>Operations:</strong> write and template operations, <code>app_call</code>, the <code>operation</code> trigger action, UI forms and views' actions through operations, and <code>call</code> grants on them.</li>
+<li><strong>Data cards and provenance:</strong> cards in packages and for realm collections, derived-from links, cards in tool results, search and the explorer, internal marked.</li>
+<li><strong>Claims:</strong> things anyone may create, owned edges and facts, reader policies with realm defaults, the shared vocabulary in root, and the memex's links moved over as claims. This comes with docs/knowledge.md's step 1, which puts the graph in the head.</li>
+<li><strong>Moving existing apps</strong> (14), libraries as instances, and decks 1.2.0.</li>
+</ol>
+<h2 id="16-decisions">16. Decisions</h2>
+<table><thead><tr><th>Question</th><th>Decision</th><th>Why</th></tr></thead><tbody>
+<tr><td>What a realm is</td><td>A trust domain you draw; apps don't get one each</td><td>Trust boundaries are about people and businesses, not about which app made the data</td></tr>
+<tr><td>Reading within a realm</td><td>Open to every agent, with data that describes itself</td><td>Nobody knows in advance which data will be useful to which agent; silos waste the knowledge graph</td></tr>
+<tr><td>Writing</td><td>Only the owner, directly or through its published operations; you can force, as a decision</td><td>Only the owner knows its invariants</td></tr>
+<tr><td>What an instance may read</td><td>Declared by the package, approved per instance at install</td><td>Limits what untrusted code sees without hiding anyone's data</td></tr>
+<tr><td>Untrusted packages</td><td>Install them in a realm of their own</td><td>The realm is already the trust boundary; no other mechanism needed</td></tr>
+<tr><td>Internal data</td><td>Readable, marked as internal and unstable</td><td>Open without inviting dependence on what may change</td></tr>
+<tr><td>Code</td><td>Immutable per version; settings, forks and upgrades are the only changes</td><td>A deployed app is exactly a version, so nothing drifts and nothing merges</td></tr>
+<tr><td>Many tenants</td><td>One instance per realm</td><td>The separation comes from the realm, not from configuring the app</td></tr>
+<tr><td>Service output</td><td>Handed off to the requester's realm, with provenance</td><td>It's the requester's work, and needs nothing more from the service</td></tr>
+<tr><td>Links and facts</td><td>Claims with owners; anyone adds their own, only the owner retracts</td><td>The graph stores and doesn't judge; each owner keeps its own consistency</td></tr>
+<tr><td>Which claims to believe</td><td>The reader's choice, with realm defaults per label, you first</td><td>Meaning is in the eye of the reader, but most readers want a sensible default</td></tr>
+<tr><td>Things (people, places)</td><td>The realm's, created by anyone; identity by <code>same_as</code> claims</td><td>No app is canonical; data from every owner meets on the same nodes</td></tr>
+<tr><td>Mail, calendar, contacts</td><td>In the realm whose accounts they are, owned by that realm's mirror app instance; stored by the head (docs/knowledge.md)</td><td>The memex is the database, not an owner; the mirror is the one writer that keeps the copy true</td></tr>
+</tbody></table>
+<h2 id="17-open-questions">17. Open questions</h2>
+<ul>
+<li><strong>Write operations beyond mapping:</strong> some invariants need a computed value (a count, a maximum). Is a small expression language enough, or should those be template operations?</li>
+<li><strong>Policies that depend on content:</strong> "believe the CRM's <code>works_at</code> only above confidence 0.8" needs conditions in a policy, not just an order of owners. Is an order enough to start?</li>
+</ul>
+<p>Settled since the first version: mail, calendar and contacts are in the realm whose accounts they are, owned by that realm's mirror apps, and stored by the head (docs/knowledge.md); and two apps tracking the same idea is no conflict, since things are shared and claims are owned (9).</p>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/apps.md">docs/apps.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-the-problem">1. The problem</a></li><li><a href="#2-principles">2. Principles</a></li><li><a href="#3-words">3. Words</a></li><li><a href="#4-realms">4. Realms</a></li><li><a href="#5-instances">5. Instances</a></li><li><a href="#6-ownership">6. Ownership</a></li><li><a href="#7-operations">7. Operations</a></li><li><a href="#8-data-that-explains-itself">8. Data that explains itself</a></li><li><a href="#9-the-knowledge-graph-claims">9. The knowledge graph: claims</a></li><li><a href="#10-handoff">10. Handoff</a></li><li><a href="#11-many-tenants">11. Many tenants</a></li><li><a href="#12-upgrades-and-downgrades">12. Upgrades and downgrades</a></li><li><a href="#13-what-this-replaces">13. What this replaces</a></li><li><a href="#14-upgrading-whats-installed">14. Upgrading what's installed</a></li><li><a href="#15-build-order">15. Build order</a></li><li><a href="#16-decisions">16. Decisions</a></li><li><a href="#17-open-questions">17. Open questions</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.2.2 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>
