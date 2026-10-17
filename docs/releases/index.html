@@ -85,7 +85,8 @@
 <li>downloading from <code>https://github.com/carbon6-dev/carbon6/releases/download/v&lt;version&gt;/</code>.</li>
 </ul>
 </li>
-<li><strong><code>SHA256SUMS</code></strong> of every file, and <strong>the notes:</strong> the version's section of <code>CHANGELOG.md</code>.</li>
+<li><strong><code>SHA256SUMS</code></strong> of every file, and <strong>the notes:</strong> the version's section of <code>CHANGELOG.md</code>.
+Also <strong><code>release.json</code></strong>, signed into <code>release.json.sig</code> with the secret <code>RELEASE_SIGNING_KEY</code> (<code>manifest.sh</code>). Without the secret it is unsigned, and machines don't update themselves to that release.</li>
 <li><strong>The GitHub release</strong> <code>v&lt;version&gt;</code>, with the files below. If the release already exists (a re-run), missing files are uploaded.</li>
 <li><strong>The tap:</strong> the formulas are committed to <code>carbon6-dev/homebrew-carbon6</code>, so <code>brew install carbon6-dev/carbon6/c6h</code> works and <code>brew upgrade</code> finds new releases.
 <ul>
@@ -102,6 +103,7 @@
 <tr><td><code>c6h-&lt;v&gt;-darwin-arm64.tar.gz</code>, <code>-x86_64</code> (and the others)</td><td>each binary for macOS without Homebrew; also the formulas' source</td></tr>
 <tr><td><code>c6h.rb</code> and the other formulas</td><td>the formulas, as pushed to the tap</td></tr>
 <tr><td><code>SHA256SUMS</code></td><td>checksums of all of the above</td></tr>
+<tr><td><code>release.json</code>, <code>release.json.sig</code></td><td>the manifest carbon6 updates itself from, and its Ed25519 signature (<a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/updates.md">docs/updates.md</a> §2)</td></tr>
 </tbody></table>
 <h2 id="7-make-targets">7. Make targets</h2>
 <table><thead><tr><th>Target</th><th>Does</th></tr></thead><tbody>
@@ -117,6 +119,7 @@
 <li><strong>Tap repository:</strong> create a public, empty <code>carbon6-dev/homebrew-carbon6</code>.</li>
 <li><strong>Token:</strong> make a fine-grained token for it with <em>Contents: read and write</em>, and add it to <code>carbon6-dev/carbon6</code> as the Actions secret <code>TAP_TOKEN</code>.</li>
 <li><strong>Release:</strong> <code>make release BUMP=minor</code> cuts <code>0.2.0</code>.</li>
+<li><strong>Signing key</strong> for self-updates: <code>gh secret set RELEASE_SIGNING_KEY &lt; ~/.config/carbon6-release/signing-key.pem</code>. Its public half is <code>c6_core::update::RELEASE_KEYS</code>.</li>
 </ol>
 <h2 id="9-open-questions">9. Open questions</h2>
 <ul>
