@@ -218,7 +218,7 @@ c6w run
 </li>
 </ul>
 <h3 id="mail-calendar-and-contacts">Mail, calendar and contacts</h3>
-<p>carbon6 is a client for your Gmail and Google Workspace accounts (☰ → <strong>Mail</strong>, <strong>Calendar</strong>, <strong>Contacts</strong>). Three apps do the syncing, installed in home: <strong>gmail</strong>, <strong>google-calendar</strong> and <strong>google-contacts</strong>. They run on the <strong>google</strong> kit on a worker with Docker or Podman, which reaches only Google. Their packages are part of carbon6, and an IMAP or CalDAV app would be written the same way. Design: <a href="/docs/knowledge/">docs/knowledge.md</a> §6.</p>
+<p>carbon6 is a client for your Gmail and Google Workspace accounts (☰ → <strong>Mail</strong>, <strong>Calendar</strong>, <strong>Contacts</strong>). Each realm can have its own: personal Gmail in home, a business's Workspace account in that business's realm, each with its own mail, events and contacts (the pages follow the realm picked in the header). Three apps do the syncing, installed in each realm that has accounts: <strong>gmail</strong>, <strong>google-calendar</strong> and <strong>google-contacts</strong>. They run on the <strong>google</strong> kit on a worker with Docker or Podman, which reaches only Google. Their packages are part of carbon6, and an IMAP or CalDAV app would be written the same way. Design: <a href="/docs/knowledge/">docs/knowledge.md</a> §6.</p>
 <ul>
 <li>
 <p><strong>Setup</strong> (<strong>Settings → Mail &amp; calendar</strong>):</p>
@@ -408,6 +408,7 @@ c6w run
 <li><strong>The agent never sees a value.</strong> The system prompt lists only names and descriptions, and a value that appears in command output is replaced by <code>[secret:NAME]</code> before the model or the UI sees it.</li>
 <li><strong>Storage.</strong> Values are encrypted on the head and can only be replaced, never read back.</li>
 <li><strong>Delivery.</strong> Workers fetch values when a turn starts, keep them in memory for a few minutes, and never write them to their journal. A secret scoped to a <code>worker:</code> label is only handed to that worker.</li>
+<li><strong>Per realm.</strong> A secret belongs to a realm, and the same name can hold a different value in each (work's <code>GITHUB_TOKEN</code> and home's). A session gets its realm's, else root's: root's secrets are every realm's that has none of its own by that name. The page follows the realm picked in the header.</li>
 </ul>
 <h3 id="background-tasks">Background tasks</h3>
 <p>The agent can start work in the background and carry on: long builds, test suites, servers (<code>bash</code> with <code>run_in_background</code>), and subagents (Task with <code>run_in_background</code>).</p>
