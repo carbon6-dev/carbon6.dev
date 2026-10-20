@@ -75,6 +75,9 @@ c6w run
 <p>Answer with an option, a form or a note, or start a session that helps you settle one. Answering one answers what waits on it, and answering in the session settles the decision. With options, a notification carries a link that answers it from your phone. With a deadline, an unanswered decision takes its default answer.</p>
 </li>
 <li>
+<p><strong>Task cards:</strong> while working, an agent proposes things worth doing that don't belong in the current change (dead code, a stale doc, a missing test, a bug noticed in passing) as cards: a title, why, and the prompt a new session would get. <strong>Start it</strong> runs that session where the first one worked (in a fresh worktree if it used one), and <strong>Not now</strong> dismisses it. Cards show in their session and in Decisions under "Suggested tasks", without notifications. When to propose is an editable prompt (<code>session.task_cards</code>). Design: <a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/task-cards.md">docs/task-cards.md</a>.</p>
+</li>
+<li>
 <p><strong>In the session, too:</strong> a session shows its own open decisions under its transcript, as <strong>Waiting for you</strong>, to answer right there. These are the questions its agent asked without stopping, the grants it asked for, and what it was started to work on. Its tool approvals and questions show in the transcript itself, as before.</p>
 </li>
 <li>
