@@ -61,13 +61,14 @@
 </ol>
 <p>Pushing it is the release. <strong>CI</strong> runs for it as for any push to <code>main</code>:</p>
 <table><thead><tr><th>Job</th><th>Runner</th><th>Does</th></tr></thead><tbody>
-<tr><td>meta</td><td>ubuntu-24.04</td><td>the version, and whether this is a release commit (<code>Release &lt;version&gt;</code>, not tagged yet)</td></tr>
-<tr><td>test</td><td>Test workflow</td><td>Linux and macOS suites, and Linux under load</td></tr>
+<tr><td>meta</td><td>ubuntu-24.04</td><td>the version, whether this is a release commit (<code>Release &lt;version&gt;</code>, not tagged yet), and whether its code was already tested (below)</td></tr>
+<tr><td>test</td><td>Test workflow</td><td>Linux and macOS suites, and Linux under load (skipped for a release commit whose code was already tested)</td></tr>
 <tr><td>linux</td><td>ubuntu-22.04, ubuntu-22.04-arm</td><td><code>make deb-test</code>: the .debs and <code>carbon6-&lt;v&gt;-linux-&lt;arch&gt;.tar.gz</code>, built on Ubuntu 22.04 itself (its glibc is the minimum) with the cargo cache, then installed under systemd in a container, run, upgraded and removed</td></tr>
 <tr><td>macos</td><td>macos-15 (Apple Silicon)</td><td><code>make brew-test</code>: bottles and binary tarballs, with the cargo cache, then installed from a scratch tap, the head started with <code>brew services</code>, a worker attached, stopped with SIGTERM</td></tr>
 <tr><td>publish</td><td>ubuntu-24.04, only for a release commit, after all the others</td><td>tags <code>v&lt;version&gt;</code> on that commit, then <code>packaging/release/publish.sh</code> (§6) on the packages the other jobs built</td></tr>
 </tbody></table>
 <p>The packages are built in parallel with the tests, so a release is published about when its tests finish. Intel Macs are not built (since 0.3.10).</p>
+<p><strong>No second test run for a release.</strong> A release commit normally changes only the version (in <code>Cargo.toml</code> and <code>Cargo.lock</code>) and <code>CHANGELOG.md</code>. When that's all it changes, and CI already passed on the commit before it (the same code), <code>meta</code> says so and the tests are skipped. The packages are still built, since the version is compiled into them. Anything else in the diff, or no green run on the commit before (a release cut before the previous push finished CI), and the tests run as for any commit.</p>
 <p><strong>Dry run:</strong> started by hand (Actions → CI → Run workflow, or <code>gh workflow run ci.yml</code>), it tests and builds <code>main</code> and keeps the packages on the run. <code>publish</code> is skipped.</p>
 <h2 id="5-changelog">5. Changelog</h2>
 <ul>
