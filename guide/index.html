@@ -115,7 +115,7 @@ c6w run
 <p>carbon6 updates itself from GitHub releases. It installs only a release whose <code>release.json</code> is signed by carbon6's release key, which is built into every binary, and only files with the checksums it lists. Design: <a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/updates.md">docs/updates.md</a>.</p>
 <ul>
 <li>
-<p><strong>Asking first:</strong> the head looks every 6 hours. A new release becomes a Decision, "Update carbon6 to 0.3.5?", with its notes. <strong>Settings → System → Updates</strong> shows the same, with Update now, Skip, and Look now.</p>
+<p><strong>Asking first:</strong> the head looks every 15 minutes (<code>update_check_secs</code> in <code>c6h.toml</code>). A new release becomes a Decision, "Update carbon6 to 0.3.5?", with its notes. <strong>Settings → System → Updates</strong> shows the same, with Update now, Skip, and Look now.</p>
 </li>
 <li>
 <p><strong>Other modes:</strong> update on its own (patch releases, or minor ones too, optionally only within a time window), just show it, or don't look at all.</p>
