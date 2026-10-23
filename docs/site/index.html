@@ -41,7 +41,7 @@
 <tr><td><code>make site-publish</code></td><td>builds it and pushes it to the pages repository (<code>SITE_REPOSITORY</code>, <code>SITE_BRANCH</code>)</td></tr>
 </tbody></table>
 <p><code>make site-publish</code> pushes with your own SSH key, or with <code>SITE_TOKEN</code> over HTTPS when it is set. An unchanged site pushes nothing.</p>
-<p>The <strong>Site workflow</strong> (<code>.github/workflows/site.yml</code>) runs <code>make site-check</code> and <code>make site</code> for pull requests that touch the site's sources, and also <code>make site-publish</code> for pushes to <code>main</code>, after each successful Release workflow, and by hand. The push of a release commit (<code>Release x.y.z</code>) only builds: the install page would link to packages the Release workflow hasn't uploaded yet. So a version reaches the site only once its packages are up, and a failed release never reaches it. Without the <code>SITE_TOKEN</code> secret it builds and warns instead of publishing.</p>
+<p>The <strong>Site workflow</strong> (<code>.github/workflows/site.yml</code>) runs <code>make site-check</code> and <code>make site</code> for pull requests that touch the site's sources, and also <code>make site-publish</code> for pushes to <code>main</code>, after each successful CI run on <code>main</code> (a release's publishes its packages), and by hand. The push of a release commit (<code>Release x.y.z</code>) only builds: the install page would link to packages CI hasn't uploaded yet. So a version reaches the site only once its packages are up, and a failed release never reaches it. Without the <code>SITE_TOKEN</code> secret it builds and warns instead of publishing.</p>
 <h2 id="4-setting-it-up">4. Setting it up</h2>
 <p>Once, by hand:</p>
 <ol>

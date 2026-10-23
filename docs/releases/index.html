@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Releases and CI · carbon6</title><meta name="description" content="How a release is cut, built, tested and published, and how CI runs the same commands you do."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/releases/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Releases and CI · carbon6"><meta property="og:description" content="How a release is cut, built, tested and published, and how CI runs the same commands you do."><meta property="og:url" content="https://carbon6.dev/docs/releases/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/apps/">Apps and data</a></li><li><a href="/docs/knowledge/">Knowledge in the head</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/" aria-current="page">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Releases and CI</h1><div><p>Status: built (2026-10-15); the workflows have not yet run on GitHub.</p>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Releases and CI · carbon6</title><meta name="description" content="How a release is cut, built, tested and published, and how CI runs the same commands you do."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/releases/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Releases and CI · carbon6"><meta property="og:description" content="How a release is cut, built, tested and published, and how CI runs the same commands you do."><meta property="og:url" content="https://carbon6.dev/docs/releases/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/apps/">Apps and data</a></li><li><a href="/docs/knowledge/">Knowledge in the head</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/" aria-current="page">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Releases and CI</h1><div><p>Status: built (2026-10-15); reworked 2026-10-23 so packages are built once per commit and a release publishes them as soon as its commit is green.</p>
 <h2 id="1-goals">1. Goals</h2>
 <ul>
-<li><strong>One command cuts a release:</strong> <code>make release BUMP=minor</code>. GitHub Actions does the rest: tests, every package, smoke tests, the GitHub release and the Homebrew tap.</li>
+<li><strong>One command cuts a release:</strong> <code>make release BUMP=minor</code> pushes a release commit. CI does the rest: tests, every package, smoke tests, then the tag, the GitHub release and the Homebrew tap.</li>
+<li><strong>Built once, published in minutes.</strong> Every push to <code>main</code> builds its packages while its tests run. A release commit is tagged and published from those same packages as soon as all of it is green, with no second test run and no rebuild.</li>
 <li><strong>CI runs what you run.</strong> Each workflow step is a make target or a script under <code>packaging/</code>, so any CI failure can be reproduced with the same command on your machine.</li>
 <li><strong>Every change is tested</strong> on Linux and macOS, on every push to <code>main</code> and every pull request.</li>
 <li><strong>Nothing half-done.</strong> A release that fails before its tag leaves nothing behind. One that fails in CI publishes nothing, and the fix is a new patch release.</li>
@@ -10,8 +11,8 @@
 <p><strong>Not goals (for now):</strong> an apt repository (so <code>apt upgrade</code> would find new versions), signed packages, Docker images on a registry, Windows.</p>
 <h2 id="2-workflows">2. Workflows</h2>
 <table><thead><tr><th>Workflow</th><th>Runs on</th><th>Does</th></tr></thead><tbody>
-<tr><td><strong>Test</strong> (<code>.github/workflows/test.yml</code>)</td><td>push to <code>main</code>, pull requests, and from Release</td><td><code>cargo test --locked</code> on Ubuntu 24.04 and macOS 15; the web UI compiles for wasm32</td></tr>
-<tr><td><strong>Release</strong> (<code>.github/workflows/release.yml</code>)</td><td>a <code>v*</code> tag; or by hand, as a dry run</td><td>§4</td></tr>
+<tr><td><strong>CI</strong> (<code>.github/workflows/ci.yml</code>)</td><td>every push to <code>main</code>; or by hand, as a dry run</td><td>the tests, the packages, and for a release commit the tag and the publication (§4)</td></tr>
+<tr><td><strong>Test</strong> (<code>.github/workflows/test.yml</code>)</td><td>pull requests, and from CI</td><td><code>make check</code>, then <code>cargo test --locked</code> on Ubuntu 24.04 and macOS 15, and the suite again with every core busy (docs/testing.md)</td></tr>
 </tbody></table>
 <p><strong>Toolchain:</strong> the Rust and Trunk versions come from <code>docker/Dockerfile</code> (<code>RUST_VERSION</code>, <code>TRUNK_VERSION</code>), through <code>.github/actions/rust</code>. The Docker builds use the same versions, so local and CI builds match.</p>
 <h2 id="3-versions">3. Versions</h2>
@@ -23,15 +24,15 @@
 <p><strong>One version for the workspace.</strong> Every crate has <code>version.workspace = true</code>, so a release sets <code>[workspace.package] version</code> alone. <code>c6_core::VERSION</code>, which workers send to the head and which database upgrades record, is that version.</p>
 </li>
 <li>
-<p><strong>Tags:</strong> annotated, <code>v0.2.0</code>. The Release workflow refuses a tag that doesn't match the workspace version.</p>
+<p><strong>Tags:</strong> annotated, <code>v0.2.0</code>, made by CI on the release commit once it is green (never by hand).</p>
 </li>
 <li>
 <p><strong>Package versions:</strong></p>
 <ul>
-<li>at a release tag: <code>0.2.0</code> (deb and brew alike);</li>
+<li>for a release commit: <code>0.2.0</code> (deb and brew alike);</li>
 <li>between releases: <code>0.2.0+git&lt;commit time&gt;.&lt;commit&gt;</code> (deb) and <code>0.2.0.&lt;commit time&gt;</code> (brew).</li>
 </ul>
-<p>Both sort after <code>0.2.0</code> and before <code>0.2.1</code>, so upgrades go the right way. The Makefile picks the right one by itself: <code>RELEASE_TAG</code> is set when <code>HEAD</code> carries <code>v&lt;crate version&gt;</code>.</p>
+<p>Both sort after <code>0.2.0</code> and before <code>0.2.1</code>, so upgrades go the right way. The Makefile picks the plain version when <code>HEAD</code> carries <code>v&lt;crate version&gt;</code>, or when <code>RELEASE=1</code> (CI building a release commit before tagging it).</p>
 </li>
 </ul>
 <h2 id="4-cutting-a-release">4. Cutting a release</h2>
@@ -50,23 +51,24 @@
 <ul>
 <li>sets the version, and refreshes <code>Cargo.lock</code> offline;</li>
 <li>puts a new section at the top of <code>CHANGELOG.md</code> (§5);</li>
-<li>commits <code>Release 0.2.0</code> and tags <code>v0.2.0</code>.</li>
+<li>commits <code>Release 0.2.0</code>.</li>
 </ul>
 <p>A failure along the way puts everything back.</p>
 </li>
 <li>
-<p><strong>Push:</strong> asks first (<code>YES=1</code> skips the question), then <code>git push --atomic origin main v0.2.0</code>. Not pushed, the commit and tag stay local; <code>git tag -d v0.2.0 &amp;&amp; git reset --hard HEAD~1</code> undoes them.</p>
+<p><strong>Push:</strong> asks first (<code>YES=1</code> skips the question), then <code>git push origin main</code>. Not pushed, the commit stays local; <code>git reset --hard HEAD~1</code> undoes it.</p>
 </li>
 </ol>
-<p>The tag starts the <strong>Release workflow</strong>:</p>
+<p>Pushing it is the release. <strong>CI</strong> runs for it as for any push to <code>main</code>:</p>
 <table><thead><tr><th>Job</th><th>Runner</th><th>Does</th></tr></thead><tbody>
-<tr><td>check</td><td>ubuntu-24.04</td><td>the tag matches the workspace version</td></tr>
-<tr><td>test</td><td>Test workflow</td><td>Linux and macOS suites</td></tr>
-<tr><td>linux</td><td>ubuntu-24.04, ubuntu-24.04-arm</td><td><code>make docker-deb-test</code>: the .debs and <code>carbon6-&lt;v&gt;-linux-&lt;arch&gt;.tar.gz</code>, built on Ubuntu 22.04 natively per architecture, then installed under systemd, run, upgraded and removed</td></tr>
-<tr><td>macos</td><td>macos-15 (Apple Silicon), macos-15-intel</td><td><code>make brew-test</code>: bottles and binary tarballs, then installed from a scratch tap, the head started with <code>brew services</code>, a worker and the memex attached, stopped with SIGTERM</td></tr>
-<tr><td>publish</td><td>ubuntu-24.04, after all the others</td><td><code>packaging/release/publish.sh</code> (§6)</td></tr>
+<tr><td>meta</td><td>ubuntu-24.04</td><td>the version, and whether this is a release commit (<code>Release &lt;version&gt;</code>, not tagged yet)</td></tr>
+<tr><td>test</td><td>Test workflow</td><td>Linux and macOS suites, and Linux under load</td></tr>
+<tr><td>linux</td><td>ubuntu-22.04, ubuntu-22.04-arm</td><td><code>make deb-test</code>: the .debs and <code>carbon6-&lt;v&gt;-linux-&lt;arch&gt;.tar.gz</code>, built on Ubuntu 22.04 itself (its glibc is the minimum) with the cargo cache, then installed under systemd in a container, run, upgraded and removed</td></tr>
+<tr><td>macos</td><td>macos-15 (Apple Silicon)</td><td><code>make brew-test</code>: bottles and binary tarballs, with the cargo cache, then installed from a scratch tap, the head started with <code>brew services</code>, a worker attached, stopped with SIGTERM</td></tr>
+<tr><td>publish</td><td>ubuntu-24.04, only for a release commit, after all the others</td><td>tags <code>v&lt;version&gt;</code> on that commit, then <code>packaging/release/publish.sh</code> (§6) on the packages the other jobs built</td></tr>
 </tbody></table>
-<p><strong>Dry run:</strong> started by hand (Actions → Release → Run workflow, or <code>gh workflow run release.yml</code>), the workflow builds and tests everything and keeps the artifacts on the run. <code>publish</code> is skipped. Do this once before the first release.</p>
+<p>The packages are built in parallel with the tests, so a release is published about when its tests finish. Intel Macs are not built (since 0.3.10).</p>
+<p><strong>Dry run:</strong> started by hand (Actions → CI → Run workflow, or <code>gh workflow run ci.yml</code>), it tests and builds <code>main</code> and keeps the packages on the run. <code>publish</code> is skipped.</p>
 <h2 id="5-changelog">5. Changelog</h2>
 <ul>
 <li><strong><code>CHANGELOG.md</code>, newest first.</strong> Each release adds a section: <code>## 0.2.0 (2026-10-15)</code>, then one bullet per commit since the previous tag, its one-line message as written.</li>
@@ -76,11 +78,11 @@
 <li><strong>Preview:</strong> <code>make release-notes</code> prints the next section without changing anything.</li>
 </ul>
 <h2 id="6-publishing">6. Publishing</h2>
-<p><code>publish.sh &lt;version&gt; &lt;dir&gt;</code> runs in the Release workflow, on the artifacts of the other jobs:</p>
+<p><code>publish.sh &lt;version&gt; &lt;dir&gt;</code> runs in CI's publish job, on the packages the other jobs built:</p>
 <ol>
 <li><strong>The formulas,</strong> written by <code>packaging/brew/formulas.sh</code>:
 <ul>
-<li>one per binary, covering both architectures (<code>on_arm</code> / <code>on_intel</code>);</li>
+<li>one per binary, for Apple Silicon (<code>depends_on arch: :arm64</code>);</li>
 <li>with a bottle for each;</li>
 <li>downloading from <code>https://github.com/carbon6-dev/carbon6/releases/download/v&lt;version&gt;/</code>.</li>
 </ul>
@@ -99,15 +101,15 @@ Also <strong><code>release.json</code></strong>, signed into <code>release.json.
 <table><thead><tr><th>File</th><th>What it is</th></tr></thead><tbody>
 <tr><td><code>c6h_&lt;v&gt;_amd64.deb</code>, <code>_arm64.deb</code> (and <code>c6w</code>, <code>c6</code>; <code>c6m</code> until 0.2.2, since the memex is part of the head)</td><td>Ubuntu packages with systemd units, for 22.04 and later</td></tr>
 <tr><td><code>carbon6-&lt;v&gt;-linux-amd64.tar.gz</code>, <code>-arm64</code></td><td>the four binaries, for Linux without packages</td></tr>
-<tr><td><code>c6h-&lt;v&gt;.arm64_big_sur.bottle.tar.gz</code>, <code>.big_sur.</code> (and the others)</td><td>Homebrew bottles, Apple Silicon and Intel, for macOS 11 and later</td></tr>
-<tr><td><code>c6h-&lt;v&gt;-darwin-arm64.tar.gz</code>, <code>-x86_64</code> (and the others)</td><td>each binary for macOS without Homebrew; also the formulas' source</td></tr>
+<tr><td><code>c6h-&lt;v&gt;.arm64_big_sur.bottle.tar.gz</code> (and the others)</td><td>Homebrew bottles for Apple Silicon, macOS 11 and later</td></tr>
+<tr><td><code>c6h-&lt;v&gt;-darwin-arm64.tar.gz</code> (and the others)</td><td>each binary for macOS without Homebrew; also the formulas' source</td></tr>
 <tr><td><code>c6h.rb</code> and the other formulas</td><td>the formulas, as pushed to the tap</td></tr>
 <tr><td><code>SHA256SUMS</code></td><td>checksums of all of the above</td></tr>
 <tr><td><code>release.json</code>, <code>release.json.sig</code></td><td>the manifest carbon6 updates itself from, and its Ed25519 signature (<a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/updates.md">docs/updates.md</a> §2)</td></tr>
 </tbody></table>
 <h2 id="7-make-targets">7. Make targets</h2>
 <table><thead><tr><th>Target</th><th>Does</th></tr></thead><tbody>
-<tr><td><code>make release [BUMP=… | VERSION=…]</code></td><td>§4: checks, release commit, tag, push</td></tr>
+<tr><td><code>make release [BUMP=… | VERSION=…]</code></td><td>§4: checks, release commit, push (CI tags and publishes)</td></tr>
 <tr><td><code>make release-notes</code></td><td>prints the next changelog section</td></tr>
 <tr><td><code>make docker-deb-test [ARCH=…]</code></td><td>the Linux job: builds and tries the .debs under systemd</td></tr>
 <tr><td><code>make brew-test</code></td><td>the macOS job: builds and tries the bottles. It installs into this Mac's Homebrew, so it refuses where c6h etc. are installed or :7700 is in use, and removes all it installed</td></tr>
@@ -115,7 +117,7 @@ Also <strong><code>release.json</code></strong>, signed into <code>release.json.
 </tbody></table>
 <h2 id="8-setting-it-up-once">8. Setting it up (once)</h2>
 <ol>
-<li><strong>Dry run:</strong> run the Release workflow by hand on <code>main</code> (§4) and check that every job passes.</li>
+<li><strong>Dry run:</strong> run CI by hand on <code>main</code> (§4) and check that every job passes.</li>
 <li><strong>Tap repository:</strong> create a public, empty <code>carbon6-dev/homebrew-carbon6</code>.</li>
 <li><strong>Token:</strong> make a fine-grained token for it with <em>Contents: read and write</em>, and add it to <code>carbon6-dev/carbon6</code> as the Actions secret <code>TAP_TOKEN</code>.</li>
 <li><strong>Release:</strong> <code>make release BUMP=minor</code> cuts <code>0.2.0</code>.</li>
@@ -123,9 +125,9 @@ Also <strong><code>release.json</code></strong>, signed into <code>release.json.
 </ol>
 <h2 id="9-open-questions">9. Open questions</h2>
 <ul>
-<li><strong>Upgrade check across releases.</strong> A release could keep a small <code>c6h.db</code> and <code>memex.db</code> (<code>packaging/release/fixtures/&lt;version&gt;/</code>), and the Release workflow could run <code>c6h upgrade --check</code> from the previous release's copies (and of its knowledge store). That catches a migration that breaks upgrades before it ships.</li>
+<li><strong>Upgrade check across releases.</strong> A release could keep a small <code>c6h.db</code> and <code>memex.db</code> (<code>packaging/release/fixtures/&lt;version&gt;/</code>), and CI could run <code>c6h upgrade --check</code> from the previous release's copies (and of its knowledge store). That catches a migration that breaks upgrades before it ships.</li>
 <li><strong>The commit in <code>--version</code> between releases.</strong> Today a build after <code>0.2.0</code> reports <code>0.2.0</code>. A build script could add <code>+git&lt;commit&gt;</code>.</li>
 <li><strong>An apt repository.</strong> A signed one, on GitHub Pages, would let <code>apt upgrade</code> pick up releases. It needs a signing key in the repository's secrets.</li>
-<li><strong>Docker images.</strong> <code>carbon6/c6h</code> and <code>carbon6/c6w</code> could be pushed to <code>ghcr.io</code> by the Release workflow.</li>
+<li><strong>Docker images.</strong> <code>carbon6/c6h</code> and <code>carbon6/c6w</code> could be pushed to <code>ghcr.io</code> by CI's publish job.</li>
 </ul>
 </div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/releases.md">docs/releases.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-goals">1. Goals</a></li><li><a href="#2-workflows">2. Workflows</a></li><li><a href="#3-versions">3. Versions</a></li><li><a href="#4-cutting-a-release">4. Cutting a release</a></li><li><a href="#5-changelog">5. Changelog</a></li><li><a href="#6-publishing">6. Publishing</a></li><li><a href="#7-make-targets">7. Make targets</a></li><li><a href="#8-setting-it-up-once">8. Setting it up (once)</a></li><li><a href="#9-open-questions">9. Open questions</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.3.9 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>
