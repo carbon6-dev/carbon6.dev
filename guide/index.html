@@ -102,7 +102,7 @@ c6w run
 <li>Or set <code>ui_tls_cert</code>/<code>ui_tls_key</code> to PEM files. With HTTPS on, plain HTTP on the UI port redirects to the HTTPS name.</li>
 <li>Sign-in is on by default; <code>auth = false</code> turns it off.</li>
 <li>Set <code>otlp_endpoint</code> (or <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>) to export traces.</li>
-<li>MCP servers, slash commands, agents, skills and hooks are configured in the UI (Settings) and stored on the head.</li>
+<li>MCP servers, slash commands, agents, skills and hooks are configured in the UI (Settings) and stored on the head. Settings is grouped (General, Models, Agents and tools, Automation, Memory and memex, System), with one page per setting.</li>
 </ul>
 </li>
 <li><strong>Worker:</strong> its identity lives in <code>~/.local/state/c6w</code> (Linux) or <code>~/Library/Application Support/c6w</code> (macOS).
@@ -157,7 +157,7 @@ c6w run
 <li><strong>Google accounts</strong> synced by the memex before move into the gmail, google-calendar and google-contacts apps on their own (Settings → Mail &amp; calendar).</li>
 </ol>
 <h3 id="sessions-from-claude-code-and-codex">Sessions from Claude Code and Codex</h3>
-<p><strong>Settings → System → Sessions from Claude Code and Codex</strong> turns on importing for the workers you pick. Each such worker reads <code>~/.claude/projects</code> and <code>~/.codex/sessions</code> every minute, and only files that changed. Every session there becomes a carbon6 session (labelled <code>imported:claude-code</code> or <code>imported:codex</code>) with its messages, tool calls and usage. New messages follow as you keep using those tools.</p>
+<p><strong>Settings → System → Imports</strong> turns on importing for the workers you pick. Each such worker reads <code>~/.claude/projects</code> and <code>~/.codex/sessions</code> every minute, and only files that changed. Every session there becomes a carbon6 session (labelled <code>imported:claude-code</code> or <code>imported:codex</code>) with its messages, tool calls and usage. New messages follow as you keep using those tools.</p>
 <ul>
 <li><strong>Realms:</strong> folder rules place sessions (<code>~/work/**</code> → work), and anything else goes to home.</li>
 <li><strong>Continuing:</strong> send a message to an imported session, picking a connection. A Claude Code connection resumes it with Claude Code's own memory of it; any other connection continues from the history. From then on it is carbon6's, and the import leaves it alone.</li>
@@ -523,12 +523,37 @@ c6w run
 <h3 id="workspace">Workspace</h3>
 <p>The UI is a workspace of up to four <strong>tiles</strong> side by side: framed cards, each with its own bar (‹ › back and forward, its name, ⧉, ✕).</p>
 <ul>
-<li><strong>Inside a tile:</strong> at most two panes, a list and the item opened from it. Clicking anything inside a tile opens it in that tile's right pane, beside the list, replacing what was there. ‹ and › (⌘[ / ⌘]) step through the tile's own history.</li>
-<li><strong>A new tile only when you ask:</strong> ⌘/Ctrl-click a link, ⧉ in a tile's bar (moves the open item into a tile of its own), or <strong>+ Tile</strong>. ⌘1–4 focus a tile. With four open, a new one replaces the least recently used. A session that is already open is shown where it is instead of opening twice.</li>
-<li><strong>The header's navigation</strong> (Sessions, Decisions, Settings…) replaces what the focused tile shows. Back brings it back.</li>
-<li><strong>Activity dock</strong> (left, on wide screens): running sessions, ones that finished or failed while not on screen (amber/red), and pinned ones (☆ in a session's header). <strong>Inbox</strong> lists the same for triage; <strong>Mission</strong> shows them as live cards you can reply from.</li>
-<li><strong>Phones:</strong> one tile at a time with a switcher, Inbox and <strong>+</strong> at the bottom; one pane fills the screen (‹ in the item's header goes back to the list), and the nav is in ☰.</li>
-<li>The workspace is saved in the browser; the address bar shows the focused pane, so links and reloads land in the right place.</li>
+<li>
+<p><strong>Inside a tile:</strong> at most two panes, a list and the item opened from it. Clicking anything inside a tile opens it in that tile's right pane, beside the list, replacing what was there. ‹ and › (⌘[ / ⌘]) step through the tile's own history.</p>
+</li>
+<li>
+<p><strong>A new tile only when you ask:</strong> ⌘/Ctrl-click a link, ⧉ in a tile's bar (moves the open item into a tile of its own), or <strong>+ Tile</strong>. ⌘1–4 focus a tile. With four open, a new one replaces the least recently used. A session that is already open is shown where it is instead of opening twice.</p>
+</li>
+<li>
+<p><strong>The header's navigation</strong> (Sessions, Decisions, Settings…) replaces what the focused tile shows. Back brings it back.</p>
+</li>
+<li>
+<p><strong>Activity dock</strong> (left, on wide screens), in sections:</p>
+<ul>
+<li><strong>Waiting for you</strong> (amber): a tool call waits for your approval;</li>
+<li><strong>Running</strong> (blue);</li>
+<li><strong>Finished</strong> (green, red when failed): sessions that ended while not on screen, until you open them. ✕ lets one go, <strong>clear</strong> all of them; the latest 20 are kept;</li>
+<li><strong>Pinned</strong> (☆ in a session's header).</li>
+</ul>
+<p><strong>Inbox</strong> lists the same for triage; <strong>Mission</strong> shows them as live cards you can reply from.</p>
+</li>
+<li>
+<p><strong>Session details:</strong> <strong>Details</strong> in a session's header opens a card at its top right with where it runs (worker, folder, branch, worktree, model), how full its context is (with <strong>Compact now</strong>), its usage, and the lines it changed (<strong>Review</strong> opens Changes). It stays open or closed as you leave it.</p>
+</li>
+<li>
+<p><strong>Light or dark:</strong> Settings → Appearance: follow the system, or always light or dark (kept in each browser).</p>
+</li>
+<li>
+<p><strong>Phones:</strong> one tile at a time with a switcher, Inbox and <strong>+</strong> at the bottom; one pane fills the screen (‹ in the item's header goes back to the list), and the nav is in ☰.</p>
+</li>
+<li>
+<p>The workspace is saved in the browser; the address bar shows the focused pane, so links and reloads land in the right place.</p>
+</li>
 </ul>
 <h3 id="search">Search</h3>
 <p>The search box in the header (⌘K) searches every message, tool call, tool output, thinking block and error in all sessions, including side chats and subagents. Words and <code>"quoted phrases"</code> must all match, as substrings (3+ characters each, case-insensitive); <code>-word</code> excludes. Results are grouped by session; each match links to its place in the transcript, opened and highlighted. In a session, the find bar (it opens from a search result, or with <strong>Find</strong>) highlights every match on the page (the current one in orange) and steps through every match in the session and its side chats: Enter / ⌘G for the next, Shift+Enter / ⇧⌘G for the previous, Esc to close. The index (SQLite FTS5) is kept in the head's database, updated as events arrive, and rebuilt automatically when its format changes.</p>
