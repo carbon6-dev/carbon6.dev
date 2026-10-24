@@ -91,7 +91,7 @@
 </ul>
 <p><strong>As built (step 8):</strong></p>
 <ul>
-<li><strong>The realm:</strong> the assistant works in the realm you're looking at when you open it ("All realms" is root).</li>
+<li><strong>The realm:</strong> the assistant works in the realm whose page you open it from (the console's is root).</li>
 <li><strong>What it may do:</strong> its catalog calls go through the same admission as that realm's API token, so it reaches only that realm's data, and administration stays in root.</li>
 <li><strong>Its instructions</strong> are the <code>assistant.base</code> prompt, overridable per realm, which now names the realm. Its memex calls go to that realm's knowledge, and its compaction prompt is the realm's.</li>
 </ul>
@@ -169,7 +169,7 @@
 <li><strong>Creating realms:</strong> <code>POST /api/v1/realms</code> (id: lowercase letters, digits and <code>-</code>), rename, and delete. Only a realm that owns nothing can be deleted, and root and home stay. A new realm gets its own system collections at once.</li>
 <li><strong>Availability:</strong> workers and connections carry a <code>realms</code> list (migration <code>0032</code>; empty means every realm), set with <code>PUT /api/v1/workers/{id}/realms</code> and <code>…/connections/{id}/realms</code>. A session cannot start on a worker, or with a connection, that its realm may not use.</li>
 <li><strong>Per-realm settings:</strong> a Settings request with <code>?realm=</code> reads and writes that realm's own lists. A request-scoped value (<code>SETTINGS_REALM</code>) tells the settings store which realm, so every settings endpoint and form works per realm unchanged.</li>
-<li><strong>UI:</strong> a realm switcher in the header, remembered per browser ("All realms" by default; shown once a realm beyond home exists). Sessions, decisions and collections show the realm's own, new sessions start in it, and Settings edits its lists, with a note saying so. <strong>Settings → System → Realms</strong> creates and deletes realms, and sets which realms each worker and connection serves.</li>
+<li><strong>UI:</strong> each realm is its own app at <code>/r/&lt;realm&gt;/</code>, and administration is the console at <code>/admin/</code>, both enforced by the head (docs/realms-ux.md). <strong>Settings → System → Realms</strong> in the console creates and deletes realms, and sets which realms each worker and connection serves.</li>
 </ul>
 <h3 id="313-as-built-step-4b">3.13 As built (step 4b)</h3>
 <ul>
@@ -974,7 +974,7 @@ contents:
 <tr><td>3</td><td>Digests are left for triggers (step 5)</td><td>A digest is a scheduled notification of open decisions, which is exactly a trigger</td></tr>
 <tr><td>4a</td><td>A realm is deleted only when it owns nothing</td><td>Removing a realm with its data belongs to an app's uninstall (step 9), with an export first</td></tr>
 <tr><td>4a</td><td>Per-realm settings use a request-scoped realm read by the settings store</td><td>Every settings endpoint and form works per realm without being rewritten</td></tr>
-<tr><td>4a</td><td>The realm switcher lives in the browser, and "All realms" shows everything</td><td>Single user: it is a view, not a permission</td></tr>
+<tr><td>4a</td><td>Each realm's pages are its own app, enforced by the head; administration is the console (docs/realms-ux.md)</td><td>A filter in the browser leaked across realms wherever a page forgot it</td></tr>
 <tr><td>4b</td><td>Another realm's memex knowledge is a separate database, not realm columns on shared tables</td><td>Isolation by construction: no query can leak, things are naturally per realm, a realm's knowledge is deleted with its file, and grants (4c) become reads across databases</td></tr>
 <tr><td>4b</td><td>Deleting a realm drops its memex knowledge too</td><td>A realm is deleted only when it owns no sessions, records or decisions; what the memex derived from them goes with it</td></tr>
 <tr><td>4c</td><td>A grant's <code>where</code> is kept as a second filter, not merged into the query's</td><td>Merging lets a query's own condition on the same field replace the grant's</td></tr>

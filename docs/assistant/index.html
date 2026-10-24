@@ -165,8 +165,8 @@
 </ul>
 <h3 id="realms-os-step-8">Realms (OS step 8)</h3>
 <ul>
-<li><strong>A conversation works in one realm:</strong> the realm picked in the header when it starts. With "All realms" it is root, which administers carbon6 and reaches every realm.</li>
-<li><strong>Its operations are admitted like that realm's API token.</strong> It reaches the realm's sessions, collections, decisions, triggers, views, series and knowledge. Administration (workers, connections, realms, grants, settings) answers 403, and the assistant is told to send you to "All realms" for it.</li>
+<li><strong>A conversation works in one realm:</strong> the realm whose page you open it from. From the console it is root, which administers carbon6 and reaches every realm.</li>
+<li><strong>Its operations are admitted like that realm's API token.</strong> It reaches the realm's sessions, collections, decisions, triggers, views, series and knowledge. Administration (workers, connections, realms, grants, settings) answers 403, and the assistant is told to send you to the console for it.</li>
 <li><strong>Its instructions</strong> are the <code>assistant.base</code> prompt as the realm has it (a realm can override it), with <code>{{realm}}</code> naming the realm.</li>
 <li><strong>Commons</strong> is not a place to work in.</li>
 </ul>
