@@ -133,6 +133,9 @@ c6w run
 <p>A build from source is never updated.</p>
 </li>
 <li>
+<p><strong>Edge channel:</strong> set the channel to <strong>edge</strong> (Settings → System → Updates) and the machine is also offered every green commit on main, which CI publishes as a rolling <code>edge</code> pre-release. With <strong>Update on its own</strong>, each one arrives within minutes. Stable machines never see them.</p>
+</li>
+<li>
 <p><strong>Rollback:</strong> a version that fails to start three times is replaced by the previous one, along with the database backup. That version is then skipped, and a Decision says so.</p>
 </li>
 </ul>
