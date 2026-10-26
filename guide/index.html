@@ -281,7 +281,7 @@ c6w run
 <li><strong>Reading:</strong> conversations, with HTML sandboxed and remote images off until you allow them.</li>
 <li><strong>Writing:</strong> Markdown compose, reply and reply all, attachments, drafts, <strong>send later</strong>, and <strong>undo</strong> (messages wait 10 seconds).</li>
 <li><strong>In the graph:</strong> every message is in the memex. Senders and recipients become people (one person across all their addresses), and company domains become organizations.</li>
-<li><strong>Inbox:</strong> carbon6's inbox shows mail that needs a reply.</li>
+<li><strong>Inbox:</strong> carbon6's inbox shows mail that needs a reply. The <strong>Brief</strong> (below) goes further.</li>
 </ul>
 </li>
 <li>
@@ -313,6 +313,43 @@ c6w run
 </ul>
 <h3 id="slack">Slack</h3>
 <p>Each realm can mirror Slack workspaces into its memex, as it does Gmail: every conversation you're in (channels, private channels, DMs and groups), with threads and shared documents, kept current within minutes (edits and deletions too), searchable, and linked to the people your mail knows. <strong>Settings → Slack</strong> walks you through making your own internal Slack app from a manifest (it keeps Slack's normal rate limits, which apps from outside Slack's directory don't), then connecting workspaces. <strong>Chat</strong> (☰) reads conversations and threads, and posts, replies and reacts as you, with a few seconds to undo. Agents in sessions whose memex scope includes <code>chat</code> can read conversations and post; their posts wait for your approval. Design: <a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/slack.md">docs/slack.md</a>.</p>
+<h3 id="the-brief">The brief</h3>
+<p>The <strong>Brief</strong> (☰ or Apps) is Mail &amp; chat's home. Instead of 200 messages, you get the handful of things people need from you. Design: <a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/brief.md">docs/brief.md</a>.</p>
+<ul>
+<li>
+<p><strong>Sorting:</strong> each recent mail thread and Slack conversation is sorted as one of:</p>
+<ul>
+<li>needs you;</li>
+<li>a real first contact;</li>
+<li>FYI;</li>
+<li>a newsletter or notification;</li>
+<li>noise;</li>
+<li>a cold pitch.</li>
+</ul>
+<p>It runs in the memex's reading loop, with your understanding model and its daily budget.</p>
+</li>
+<li>
+<p><strong>Cold pitches go first, mostly with no model.</strong> Anyone you've written to (or anyone at their company), your contacts and your colleagues are never pitches. A stranger's mail sent through a sales-sequence tool, or a sequence's "bumping this" follow-up, is. The model sorts the rest. <strong>Cold pitch</strong> and <strong>Not a pitch</strong> on a thread mark the sender for good. <strong>Sort as…</strong> with a note teaches the sorting.</p>
+</li>
+<li>
+<p><strong>Requests:</strong> what needs you becomes a request: what's asked, by whom, by when. Ana's email and her Slack ping about the same thing are one request. It closes when you answer it, anywhere.</p>
+</li>
+<li>
+<p><strong>Drafts:</strong> each request waits with a reply drafted in your voice. It's written from the conversation, your history with the person, what's open between you and your calendar. What only you can decide is left as choices. Pick them, edit, and <strong>⌘↵</strong> sends (mail with its undo window).</p>
+</li>
+<li>
+<p><strong>Keys:</strong> J/K, Enter, E done, H tomorrow, # drop, Esc.</p>
+</li>
+<li>
+<p><strong>Timing (Settings → Brief):</strong> a brief notification at your times (08:30 and 13:30 by default) and a close-of-day note. Urgent requests (your rule, <code>memex.triage.urgent</code>) tell you at once. A new request is the trigger event <code>request.opened</code>.</p>
+</li>
+<li>
+<p><strong>Your rules are settings:</strong> the prompts <code>memex.triage</code>, <code>memex.triage.pitch</code>, <code>memex.triage.signals</code>, <code>memex.triage.urgent</code>, <code>memex.requests.same</code> and <code>memex.requests.draft</code> (Settings → Prompts), each realm's own.</p>
+</li>
+<li>
+<p><strong>Agents</strong> in sessions that see mail or chat get the <code>requests</code> tool.</p>
+</li>
+</ul>
 <h3 id="browser">Browser</h3>
 <p>Where the worker's machine has Chrome, Chromium, Brave or Edge (or <code>C6_CHROME</code> names one), sessions get a <code>browser</code> tool: a headless browser of their own.</p>
 <ul>
@@ -562,4 +599,4 @@ c6w run
 </ul>
 <h3 id="search">Search</h3>
 <p>The search box in the header (⌘K) searches every message, tool call, tool output, thinking block and error in all sessions, including side chats and subagents. Words and <code>"quoted phrases"</code> must all match, as substrings (3+ characters each, case-insensitive); <code>-word</code> excludes. Results are grouped by session; each match links to its place in the transcript, opened and highlighted. In a session, the find bar (it opens from a search result, or with <strong>Find</strong>) highlights every match on the page (the current one in orange) and steps through every match in the session and its side chats: Enter / ⌘G for the next, Shift+Enter / ⇧⌘G for the previous, Esc to close. The index (SQLite FTS5) is kept in the head's database, updated as events arrive, and rebuilt automatically when its format changes.</p>
-</div><p class="source">This guide is the README's; <a href="https://github.com/carbon6-dev/carbon6/blob/main/README.md">edit it on GitHub</a>.</p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#command-line-c6">Command line (c6)</a></li><li><a href="#the-assistant">The assistant</a></li><li><a href="#collections">Collections</a></li><li><a href="#environment-knowledge-and-decisions">Environment knowledge and Decisions</a></li><li><a href="#configuration">Configuration</a></li><li><a href="#updates">Updates</a></li><li><a href="#upgrades">Upgrades</a></li><li><a href="#sessions-from-claude-code-and-codex">Sessions from Claude Code and Codex</a></li><li><a href="#labels">Labels</a></li><li><a href="#memory">Memory</a></li><li><a href="#policies-and-approvals">Policies and approvals</a></li><li><a href="#memex">Memex</a></li><li><a href="#mail-calendar-and-contacts">Mail, calendar and contacts</a></li><li><a href="#slack">Slack</a></li><li><a href="#browser">Browser</a></li><li><a href="#notifications">Notifications</a></li><li><a href="#hosts">Hosts</a></li><li><a href="#usage-and-budgets">Usage and budgets</a></li><li><a href="#model-routing">Model routing</a></li><li><a href="#templates-and-fleet-runs">Templates and fleet runs</a></li><li><a href="#automations-schedules-and-webhooks">Automations: schedules and webhooks</a></li><li><a href="#workflows">Workflows</a></li><li><a href="#connectors-mcp-servers">Connectors (MCP servers)</a></li><li><a href="#outputs-decks-reports-and-other-deliverables">Outputs: decks, reports and other deliverables</a></li><li><a href="#web-search-with-any-model">Web search with any model</a></li><li><a href="#remote-machines-over-ssh">Remote machines over SSH</a></li><li><a href="#sessions-without-a-folder">Sessions without a folder</a></li><li><a href="#secrets">Secrets</a></li><li><a href="#background-tasks">Background tasks</a></li><li><a href="#subagents">Subagents</a></li><li><a href="#rewind-and-edit">Rewind and edit</a></li><li><a href="#attachments-and--mentions">Attachments and @-mentions</a></li><li><a href="#slash-commands">Slash commands</a></li><li><a href="#agents-and-skills">Agents and skills</a></li><li><a href="#hooks">Hooks</a></li><li><a href="#workspace">Workspace</a></li><li><a href="#search">Search</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.3.11 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>
+</div><p class="source">This guide is the README's; <a href="https://github.com/carbon6-dev/carbon6/blob/main/README.md">edit it on GitHub</a>.</p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#command-line-c6">Command line (c6)</a></li><li><a href="#the-assistant">The assistant</a></li><li><a href="#collections">Collections</a></li><li><a href="#environment-knowledge-and-decisions">Environment knowledge and Decisions</a></li><li><a href="#configuration">Configuration</a></li><li><a href="#updates">Updates</a></li><li><a href="#upgrades">Upgrades</a></li><li><a href="#sessions-from-claude-code-and-codex">Sessions from Claude Code and Codex</a></li><li><a href="#labels">Labels</a></li><li><a href="#memory">Memory</a></li><li><a href="#policies-and-approvals">Policies and approvals</a></li><li><a href="#memex">Memex</a></li><li><a href="#mail-calendar-and-contacts">Mail, calendar and contacts</a></li><li><a href="#slack">Slack</a></li><li><a href="#the-brief">The brief</a></li><li><a href="#browser">Browser</a></li><li><a href="#notifications">Notifications</a></li><li><a href="#hosts">Hosts</a></li><li><a href="#usage-and-budgets">Usage and budgets</a></li><li><a href="#model-routing">Model routing</a></li><li><a href="#templates-and-fleet-runs">Templates and fleet runs</a></li><li><a href="#automations-schedules-and-webhooks">Automations: schedules and webhooks</a></li><li><a href="#workflows">Workflows</a></li><li><a href="#connectors-mcp-servers">Connectors (MCP servers)</a></li><li><a href="#outputs-decks-reports-and-other-deliverables">Outputs: decks, reports and other deliverables</a></li><li><a href="#web-search-with-any-model">Web search with any model</a></li><li><a href="#remote-machines-over-ssh">Remote machines over SSH</a></li><li><a href="#sessions-without-a-folder">Sessions without a folder</a></li><li><a href="#secrets">Secrets</a></li><li><a href="#background-tasks">Background tasks</a></li><li><a href="#subagents">Subagents</a></li><li><a href="#rewind-and-edit">Rewind and edit</a></li><li><a href="#attachments-and--mentions">Attachments and @-mentions</a></li><li><a href="#slash-commands">Slash commands</a></li><li><a href="#agents-and-skills">Agents and skills</a></li><li><a href="#hooks">Hooks</a></li><li><a href="#workspace">Workspace</a></li><li><a href="#search">Search</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.3.11 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>
