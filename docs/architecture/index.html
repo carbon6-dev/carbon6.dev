@@ -378,6 +378,7 @@ struct Message { role: Role, blocks: Vec&lt;Block&gt;, provider: Option&lt;Provi
 <li>Anthropic: adaptive thinking with <code>display: "summarized"</code> and effort via <code>output_config.effort</code>. Thinking blocks, including empty ones with only a signature, are stored and sent back unchanged. Caching uses an explicit breakpoint on the system prompt plus top-level automatic caching. Tools use <code>eager_input_streaming</code>, and the agent parses tool input strictly.</li>
 <li>Responses: <code>store: false</code> with <code>include: ["reasoning.encrypted_content"]</code>. Reasoning items are kept in output order and sent back.</li>
 <li>A client skips another provider's reasoning blocks.</li>
+<li>Effort <code>none</code> means no reasoning: Anthropic gets <code>thinking: {"type": "disabled"}</code>, Responses <code>reasoning.effort: "none"</code>, Chat Completions <code>reasoning_effort: "none"</code>. Chat Completions sends <code>reasoning_effort</code> to every server (Ollama uses it to turn a thinking model's reasoning off); a server that answers 400/422 about it is asked again without.</li>
 </ul>
 </li>
 <li><strong>Stop reasons.</strong> If a response hits <code>max_tokens</code> with tool calls, none of them run: the model gets an error result for each. A <code>refusal</code> ends the turn with an error.</li>
