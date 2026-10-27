@@ -252,7 +252,7 @@
 <ul>
 <li><strong>Item kinds in root's vocabulary:</strong> <code>email</code>, <code>attachment</code>, <code>event</code>, <code>contact</code>, <code>document</code>, <code>paper</code>, <code>photo</code>, <code>video</code> (and <code>note</code>, <code>session</code>, <code>record</code>). Each has a <code>schema</code>, the JSON Schema of its items' <code>meta</code> (for example, an email has a <code>thread_id</code>; an event has <code>end</code> and <code>all_day</code>), and a data <code>card</code> (sources, invariants, freshness).
 <ul>
-<li>Vocabularies seeded before this get the schemas, cards and new kinds added. Entries you changed keep your changes.</li>
+<li>Vocabularies seeded before this get the schemas, cards and new kinds added, and the fields a kind's schema gained later (an item carrying a field its schema lacks is refused). Entries you changed keep your changes.</li>
 <li>A schema is checked when you save the vocabulary.</li>
 </ul>
 </li>
