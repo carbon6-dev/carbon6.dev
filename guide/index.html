@@ -15,6 +15,7 @@
 <pre><code class="language-bash">c6w enroll c6e1.…
 c6w run
 </code></pre>
+<p>The token holds the address the head advertises (<code>advertise_host</code> in <code>c6h.toml</code>). A worker on another network that reaches the head some other way (a public name, a port forward) enrolls with <code>c6w enroll --head &lt;host[:port]&gt; c6e1.…</code>: it dials that address, still checks the head's certificate against the token's name, and keeps the address for <code>c6w run</code>.</p>
 <h3 id="command-line-c6">Command line (<code>c6</code>)</h3>
 <p><code>c6</code> runs sessions headless, for scripts and terminals. It signs in with an API token: create one under <strong>Settings → Sign-in → API tokens</strong> (or with <code>c6h api-token</code> on the head), then:</p>
 <pre><code class="language-bash">c6 login https://head.example:7700 --token c6_… --ca carbon6-ca.pem   # --ca only if the head signs its own certificate
