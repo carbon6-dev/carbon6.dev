@@ -37,7 +37,7 @@
 <table><thead><tr><th>Command</th><th>Does</th></tr></thead><tbody>
 <tr><td><code>make site</code></td><td>builds the site into <code>dist/site</code></td></tr>
 <tr><td><code>make site-serve</code></td><td>builds it and serves it on <a href="http://127.0.0.1:8000">http://127.0.0.1:8000</a> (<code>SITE_PORT</code>)</td></tr>
-<tr><td><code>make site-check</code></td><td>clippy (no warnings) and the generator's tests</td></tr>
+<tr><td><code>make site-check</code></td><td>formatting (<code>cargo fmt --check</code>), clippy (no warnings) and the generator's tests</td></tr>
 <tr><td><code>make site-publish</code></td><td>builds it and pushes it to the pages repository (<code>SITE_REPOSITORY</code>, <code>SITE_BRANCH</code>)</td></tr>
 </tbody></table>
 <p><code>make site-publish</code> pushes with your own SSH key, or with <code>SITE_TOKEN</code> over HTTPS when it is set. An unchanged site pushes nothing.</p>
