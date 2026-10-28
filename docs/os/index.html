@@ -57,8 +57,9 @@
 </ul>
 <p><strong>Shared infrastructure,</strong> like hardware in an OS:</p>
 <ul>
-<li><strong>Workers:</strong> each worker is either available to a list of realms, or dedicated to one. A session can only start on a worker its realm may use.</li>
+<li><strong>Workers:</strong> each worker is either available to a list of realms, or dedicated to one. A session can only start on a worker its realm may use. Template runs, kit jobs (the knowledge store's reading included) and session imports go only to workers available to their realm; a template started from a session runs on that session's worker unless you grant its realm more (<code>workers</code>, <code>start</code>).</li>
 <li><strong>Model connections and routes:</strong> each is available to a list of realms (all, by default).</li>
+<li><strong>What a worker is given:</strong> a worker asks for credentials on behalf of one of its sessions. The head gives a model connection's key only when the session is live and on that worker, its conversation uses the connection (itself, its subagents, or a model switch on its way), and the connection is available to its realm; a secret only as <code>name@session</code>, from the session's realm. Each grant and refusal is logged with the worker, session and connection. (A worker older than this doesn't say which session asks: it gets a connection one of its live sessions may use, with a warning to update it.)</li>
 <li><strong>The memex service:</strong> one service, with its data partitioned by realm.</li>
 <li><strong>The head:</strong> it enforces everything (3.8).</li>
 <li><strong>An overall budget cap,</strong> above the realms' own budgets.</li>

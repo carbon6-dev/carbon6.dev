@@ -167,8 +167,9 @@
 </ul>
 <h3 id="133-kit-jobs-allow-lists-and-oauth-providers-steps-3-and-4">13.3 Kit jobs, allow-lists and OAuth providers (steps 3 and 4)</h3>
 <ul>
-<li><strong>Kit jobs</strong> (<code>kitjobs.rs</code>): the head runs a kit tool on a worker with no session and no model. Workers with a container runtime say so (capability <code>kits</code>) and answer <code>kit.job</code>.
+<li><strong>Kit jobs</strong> (<code>kitjobs.rs</code>): the head runs a kit tool on a worker with no session and no model. Workers with a container runtime say so (capability <code>kits</code>) and answer <code>kit.job</code>; <code>C6_KIT_JOBS=off</code> keeps a worker out of them (its sessions' kits still run).
 <ul>
+<li>A job is a realm's (an app's, or the knowledge store's that asked to read a file) and runs only on a worker available to that realm: one kept to it first, else one that serves every realm. With none connected it fails; it never goes elsewhere. A file in a watched folder is read by its folder's worker, which must serve the realm too.</li>
 <li>The job runs in a folder of its own under the worker's state, with its inputs written there first, in the sandbox the kit's permissions describe.</li>
 <li>What it leaves in <code>out/</code> comes back, up to 64 MB.</li>
 <li>A first run may build the kit's image; the head allows 35 minutes on top of the run's own limit for that.</li>
@@ -189,6 +190,9 @@
 <li>Its runs go on an internal container network with no route out. A tinyproxy container sits on that network and on the default bridge, and denies every host but the listed ones (<code>HTTPS_PROXY</code> in the run).</li>
 <li>The proxy image (<code>c6kit/egress</code>, from Alpine) is built on first use.</li>
 <li>Tested on Docker Desktop: the listed host is reached and others are refused.</li>
+<li><strong>Nothing is left behind.</strong> A run's container, network and proxy carry the label <code>dev.carbon6.kit-run=&lt;worker id&gt;</code>. They're removed however the run ends: success, failure, its time limit, cancelled, or dropped midway (<code>Made</code> in <code>c6-tools/src/kits.rs</code>, from Drop). Containers go first, since a network with one still on it can't be removed.</li>
+<li>A worker stopped midway, or Docker restarting under a run, leaves them to the <strong>sweep</strong>. When the worker starts, and every 10 minutes, it removes what carries its own label and no live run owns. It never touches anything without the label (an older carbon6's, or anyone else's), nor another worker's.</li>
+<li><strong>Out of network ranges</strong> (Docker's "could not find an available, non-overlapping IPv4 address pool"), a run sweeps and tries once more. Still out, it says why, and that reaches the app's sync status: "Docker has no free network ranges: N carbon6 networks are left behind (c6net-…) that this worker can't remove", with the command that removes the unused ones.</li>
 </ul>
 </li>
 <li><strong>OAuth providers</strong> (<code>providers.rs</code>, migration <code>0044</code>): a package declares <code>providers</code> with <code>authorize_url</code>, <code>token_url</code>, <code>scopes</code>, an optional <code>userinfo_url</code> and <code>account_field</code>, extra <code>params</code>, and the realm secrets that hold your OAuth client (<code>client_id_secret</code>, <code>client_secret_secret</code>, which must be among the secrets it asks for).
@@ -283,6 +287,7 @@
 <ul>
 <li>the OAuth provider <code>google</code> (the client in home's secrets <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code>);</li>
 <li><code>feeds</code> (<code>mail</code>, <code>calendar</code>, <code>contacts</code>: a new manifest field naming the knowledge store's stores its accounts feed);</li>
+<li>gmail's <code>links</code> (since 1.1.0): where a thread opens on the service's web, for Mail's "Open in Gmail", <code>{"service": "Gmail", "thread": "https://mail.google.com/mail/?authuser={account}#all/{thread}"}</code>. The memex fills in the account's address and the thread's (or <code>{message}</code>'s, <code>{message_id}</code>'s) ids it already keeps, when the thread is read, so mail synced before has it too; imported mail, an app without <code>links</code>, or a link that isn't https gets none. The core knows no service's addresses. An install of gmail 1.0.0 gets it once you upgrade it (Settings → Apps → Upgrade…);</li>
 <li>an internal collection where its syncs are (<code>gmail_sync</code>, <code>calendar_sync</code>, <code>contacts_sync</code>);</li>
 <li>a schedule trigger that runs its sync tool with no agent (every 2, 3 and 10 minutes);</li>
 <li>kit operations: gmail's <code>modify</code>, <code>send</code> and <code>draft</code>; the calendar's <code>create</code>, <code>update</code>, <code>delete</code> and <code>rsvp</code>; the contacts' <code>create</code>.</li>
@@ -294,7 +299,9 @@
 <li><strong>The kit</strong> talks to Google and keeps nothing:
 <ul>
 <li>It reads where each sync is (<code>state/&lt;collection&gt;.json</code>) and an operation's input (<code>input.json</code>).</li>
-<li>It writes what changed as typed items in <code>out/ingest.json</code>: messages as <code>message/rfc822</code> with Gmail's ids and labels as attributes (a label change is the item without its bytes); label names, calendars, events and contacts in Google's own JSON (<code>application/vnd.c6.*+json</code>); deletions; the syncs' new records; and <code>again</code> while an import is under way.</li>
+<li>It writes what changed as typed items in <code>out/ingest.json</code>: messages as <code>message/rfc822</code> with Gmail's ids and labels as attributes (a label change is the item without its bytes); label names, calendars, events and contacts in Google's own JSON (<code>application/vnd.c6.*+json</code>); deletions; the syncs' new records; and <code>again</code> while an import or a check is under way.</li>
+<li>A label change for a message still waiting to be read (in the extraction queue, or with the kit reading it) is kept with it: the message is stored with its labels as they are then. Before, the memex refused it ("no message … to change"), so mail Gmail moved to spam, or you archived, soon after it came stayed in the inbox.</li>
+<li>So mail kept before is right, gmail's sync (google 1.2, gmail 1.2.0) reads the last 30 days' labels again once per account (<code>checked</code> in its record), 250 messages a run, with <code>format=minimal</code>. Each is a label change as above.</li>
 <li>A run brings up to 24 MB of messages. The rest of an import page waits in the sync's <code>queue</code>, and the trigger runs again at once.</li>
 <li>An operation's answer goes in <code>out/result.json</code>.</li>
 </ul>
