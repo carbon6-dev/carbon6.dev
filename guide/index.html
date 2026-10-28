@@ -89,7 +89,7 @@ c6w run
 <li><strong>Head:</strong> <code>c6h.toml</code>, optional (see <code>crates/c6-head/src/config.rs</code>): <code>~/Library/Application Support/c6h/c6h.toml</code> on macOS, <code>~/.config/c6h/c6h.toml</code> on Linux, or <code>--config</code>.
 <ul>
 <li>State (database, <code>master.key</code>, CAs) lives in <code>data_dir</code>: by default <code>~/Library/Application Support/c6h</code> (macOS) or <code>~/.local/share/c6h</code> (Linux). Back up <code>c6h.db</code> and <code>master.key</code> together.</li>
-<li>Add any names you reach the head by to <code>extra_names</code>; the head refuses requests addressed to other names. Its Tailscale MagicDNS name is added automatically.</li>
+<li>Add any names you reach the head by to <code>extra_names</code>; the head refuses requests addressed to other names, with the UI port or without a port. Its Tailscale MagicDNS name is added automatically.</li>
 <li>Passkeys need HTTPS (or <code>http://localhost</code>). <code>ui_tls_head_ca = true</code> makes the head issue its own certificate from a private CA, so its names never appear in public Certificate Transparency logs (as they would with Let's Encrypt or Tailscale certificates). Trust that CA once per device:
 <ul>
 <li>Mac (Chrome and Safari use the macOS Keychain): <code>curl -so /tmp/carbon6-ca.pem http://&lt;head&gt;:7700/ca.pem</code>, then <code>sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/carbon6-ca.pem</code>, and restart the browser. (Or open the file in Keychain Access and set Trust → Always Trust.)</li>
@@ -99,7 +99,8 @@ c6w run
 <li>The CA is name-constrained to the head's names and private IP ranges, so it cannot vouch for any other site.</li>
 </ul>
 </li>
-<li>Or set <code>ui_tls_cert</code>/<code>ui_tls_key</code> to PEM files. With HTTPS on, plain HTTP on the UI port redirects to the HTTPS name.</li>
+<li>Or set <code>ui_tls_cert</code>/<code>ui_tls_key</code> to PEM files. With HTTPS on, plain HTTP on the UI port redirects to the HTTPS name. With a wildcard certificate (<code>*.example.com</code>), that name is the first of <code>extra_names</code> it covers.</li>
+<li>Behind a proxy that passes TLS through on 443 (Traefik's TCP passthrough, nginx <code>stream</code>) or a port forward, set <code>ui_public_url</code> to the address you reach the head by: <code>https://head.example.com</code>, or with a port. Login links, the redirect to HTTPS and the addresses the head lists use it, and the head answers to it. For passkeys the head must still terminate TLS itself (<code>ui_tls_cert</code>/<code>ui_tls_key</code> or <code>ui_tls_head_ca</code>), so a proxy that terminates TLS won't do.</li>
 <li>Sign-in is on by default; <code>auth = false</code> turns it off.</li>
 <li>Set <code>otlp_endpoint</code> (or <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>) to export traces.</li>
 <li>MCP servers, slash commands, agents, skills and hooks are configured in the UI (Settings) and stored on the head. Settings is grouped (General, Models, Agents and tools, Automation, Memory and memex, System), with one page per setting.</li>
