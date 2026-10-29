@@ -302,7 +302,8 @@
 <li>It writes what changed as typed items in <code>out/ingest.json</code>: messages as <code>message/rfc822</code> with Gmail's ids and labels as attributes (a label change is the item without its bytes); label names, calendars, events and contacts in Google's own JSON (<code>application/vnd.c6.*+json</code>); deletions; the syncs' new records; and <code>again</code> while an import or a check is under way.</li>
 <li>A label change for a message still waiting to be read (in the extraction queue, or with the kit reading it) is kept with it: the message is stored with its labels as they are then. Before, the memex refused it ("no message … to change"), so mail Gmail moved to spam, or you archived, soon after it came stayed in the inbox.</li>
 <li>So mail kept before is right, gmail's sync (google 1.2, gmail 1.2.0) reads the last 30 days' labels again once per account (<code>checked</code> in its record), 250 messages a run, with <code>format=minimal</code>. Each is a label change as above.</li>
-<li>A run brings up to 24 MB of messages. The rest of an import page waits in the sync's <code>queue</code>, and the trigger runs again at once.</li>
+<li>Since google and gmail 1.2.1, a run takes a 24 MiB share of messages (a bigger one up to the memex’s 25 MiB limit takes a run of its own), with all output, including JSON, at most 43 MiB. One over 25 MiB, or too big for the job even alone, becomes a bounded message with its headers, inline text and a note listing attachments left in Gmail; until 1.2.1, one batch over the job's limit stopped all the account's mail.</li>
+<li>New mail across accounts comes before imports, which take turns; waiting messages and partial history records resume next run. Google's quota errors keep their place and back off 1, 2, 4… minutes up to 30 (or Google's longer Retry-After), without holding up other accounts.</li>
 <li>An operation's answer goes in <code>out/result.json</code>.</li>
 </ul>
 </li>
