@@ -386,18 +386,22 @@ trail(id, name, description) ; trail_step(trail_id, ordinal, target, comment)
 <li>sessions, documents, papers and web pages.</li>
 </ul>
 </li>
+<li><strong>JSON answers:</strong> reading, thing summaries, sorting, cards, drafts, request matching and vision ask Chat Completions servers for <code>response_format: {"type": "json_object"}</code>. A server that rejects it or <code>reasoning_effort</code> is asked again without the rejected field. Other APIs ignore the JSON setting. System pages ask for plain Markdown instead.</li>
+<li><strong>Failed reads:</strong> malformed JSON affected about 0.4% of reads in a live mailbox. After unread work, the walk retries failures, newest first, up to three tries for the same content and model. New mail or a new model starts over; success clears the count. Status and Activity count successes and exhausted failures separately; pending retries count as neither.</li>
 <li><strong>What comes back</strong>, as JSON:
 <ul>
 <li>a summary (<code>items.summary</code>);</li>
 <li>topics (<code>topic:&lt;slug&gt;</code> things, linked <code>about</code>);</li>
-<li>for threads and sessions, commitments: who, what, and by when;</li>
+<li>for threads and sessions, commitments: who, what, by when, and when it was said (<code>said_at</code>: the date of the message or session it was read from, not of the read). A thread's prompt gives its last message's date and today's, and asks only for what is still open at the end of the thread. The owner's addresses (also as <code>Name &lt;address&gt;</code>) and whole name, as their connected accounts give it, are saved as "me";</li>
 <li>for papers, claims: <code>claim:&lt;hash&gt;</code> things linked as <code>claims</code>, <code>uses_method</code> or <code>has_limitation</code>, with the sentence kept as evidence.</li>
 </ul>
 </li>
 <li><strong>Everything is inferred:</strong> <code>basis = inferred</code>, <code>made_by = understand-v1@&lt;model&gt;</code>.
 <ul>
 <li>Changing the model re-reads everything and replaces the old model's links.</li>
-<li>Commitments you marked done or dropped are kept.</li>
+<li>A commitment is open, done, dropped or expired. An open one the model read expires when the later of when it was said and when it was due is more than 60 days ago: as it is saved, and by a pass at start and every ten minutes, without model calls. Open ones list overdue first, then soonest due, then undated ones newest first; the others newest first.</li>
+<li>What you set by hand stays (<code>decided_at</code>): a re-read replaces only open commitments you haven't set, and one you reopen isn't expired again. A re-read doesn't add a commitment the thread already has, unless the one it has expired and the thread has newer mail.</li>
+<li>Commitments read before <code>said_at</code> (migration 0026) take their source's date, or the read's when the source is gone, and the first pass expires the old ones, including ones reopened before the migration because those decisions weren't recorded. Their owner's addresses and name are saved as "me" once, when the head has sent the accounts.</li>
 </ul>
 </li>
 <li><strong>Inputs are observed items only.</strong>
