@@ -280,6 +280,7 @@ Subagents: 0199…a2 (interrupted), 0199…b7 (completed)
 <li><strong>The <code>Task</code> call:</strong> <code>connection</code> (a name or id from the list in the tool's description), <code>model</code> (a model id, or <code>connection/model</code>) and <code>effort</code>. The model sets them when you ask ("use a subagent on my blacktitan ChatGPT connection with gpt-6.1-sol at high"). A connection without a model runs its default model.</li>
 <li><strong>A named agent's <code>model</code>:</strong> an alias (<code>opus</code>, <code>sonnet</code>, <code>haiku</code>) on an Anthropic connection, or <code>connection/model</code> on any.</li>
 <li><strong>The session's default for subagents:</strong> picked in the session (the <strong>Subagents</strong> row under the message box; <code>PUT /sessions/{id}/subagent-model</code>), else the routing rule's (<strong>Subagent connection</strong>, <strong>Subagent model</strong>, <strong>Subagent effort</strong>).</li>
+<li><strong>The connection's subagent model:</strong> set on the session's connection (Settings → Connections → Edit → <strong>Subagent model</strong>), on that same connection. A smaller model there (<code>gpt-6-luna</code> under <code>gpt-6.1-sol</code>) makes searching and reading far cheaper; subagents were a third of the calls when a ChatGPT plan ran out in three days.</li>
 <li><strong>The parent's own model.</strong></li>
 </ol>
 <p>The effort carries over only while the subagent stays on the same connection. Its own subagents inherit the session's default.</p>
