@@ -512,7 +512,8 @@ threshold(series, condition /* e.g. sum over 7 days &lt; 10, no point for 2 hour
 <li><strong>Placeholders</strong> are <code>{{name}}</code> (<code>c6_api::prompts::fill</code>).</li>
 <li><strong>How each reaches its model:</strong>
 <ul>
-<li><strong>sessions:</strong> the head sends the base prompt as the session's realm has it. It sends the worker's own prompts (compaction, subagent) in the spec's <code>prompts_json</code>.</li>
+<li><strong>sessions:</strong> the head sends the base prompt as the session's realm has it. It sends the worker's own prompts (compaction, subagent) in the spec's <code>prompts_json</code>.
+A routing rule's <code>tools</code> list can omit tools from the model. For these sessions, prompt assembly removes the exact stock base-prompt sentences about unavailable tools and gates generated memory, secrets, skills and task-card guidance on the tools present. The stored <code>session.base</code> stays as edited; custom instructions remain the author's responsibility. No list preserves the existing prompt bytes (see <a href="/docs/subagents/#tool-lists-from-routing-rules">tool lists</a>).</li>
 <li><strong>the memex:</strong> it gets its prompts with its configuration. Editing one tells it to reload.</li>
 </ul>
 </li>

@@ -9,7 +9,7 @@
 <li>To sign in another device (a phone), create a one-time code under <strong>Settings → Sign-in → Sign in another device</strong> and type it into that device's sign-in page. Codes work once, for 10 minutes; five wrong codes cancel all outstanding ones.</li>
 </ul>
 </li>
-<li>In the UI, add an LLM connection under <strong>Settings</strong>. For a local Ollama, use <code>http://127.0.0.1:11434/v1</code> with no key.</li>
+<li>In the UI, add an LLM connection under <strong>Settings</strong>. For a local Ollama, use <code>http://127.0.0.1:11434/v1</code> with no key. carbon6 finds a local server's context window automatically (vLLM, llama.cpp, Ollama's loaded model); you can set it with the connection's <a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/connections.md"><strong>Context window</strong></a>.</li>
 <li>On the <strong>Workers</strong> page, click <strong>Add worker</strong>, then run the printed command on the worker machine (or create a token with <code>c6h enroll-token</code> on the head):</li>
 </ol>
 <pre><code class="language-bash">c6w enroll c6e1.…
@@ -405,6 +405,7 @@ c6w run
 <p>Routing rules (<strong>Settings → Model routing</strong>) choose the connection and model for sessions started without one: from the new-session form on <strong>Auto</strong>, <code>c6 run</code> without <code>--model</code>, and templates or automations that leave the model empty.</p>
 <ul>
 <li><strong>A rule:</strong> labels it applies to (yours, or <code>worker:</code>, <code>folder:</code>, <code>host:</code>, <code>template:</code>; a bare <code>host:</code> means any SSH host), a connection (optional), a model, an effort and, optionally, a connection, model and effort for subagents (any API connection, not Claude Code). A named agent's model, or one a Task call asks for, still wins.</li>
+<li><strong>Tools:</strong> optionally choose the tools its sessions get (names such as <code>read</code> or <code>memex_search</code>, in any profile's naming, or <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>; empty: all). A session keeps its starting list; its side chats and subagents get no more. Claude Code sessions and the assistant keep their own tools. See <a href="/docs/subagents/#tool-lists-from-routing-rules">tool lists</a>.</li>
 <li><strong>Order:</strong> the first enabled rule that matches wins. A session started on a given connection only takes rules for that connection (or for any).</li>
 <li><strong>No match:</strong> the connection of your latest session (if you didn't pick one), its default model, else the model of your latest session on it.</li>
 <li><strong>Presets:</strong> Opus with Haiku subagents everywhere, remote hosts on a fast model at low effort, research at high effort, a template on a local model.</li>
