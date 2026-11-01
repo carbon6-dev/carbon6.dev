@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Background work and session messages · carbon6</title><meta name="description" content="Background tasks that always reach their session, a Claude Code process that stays up, and messages between sessions."><meta name="color-scheme" content="light dark"><link rel="canonical" href="https://carbon6.dev/docs/background/"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.png"><link rel="stylesheet" href="/style.css?v=290aaafd"><meta property="og:type" content="website"><meta property="og:site_name" content="carbon6"><meta property="og:title" content="Background work and session messages · carbon6"><meta property="og:description" content="Background tasks that always reach their session, a Claude Code process that stays up, and messages between sessions."><meta property="og:url" content="https://carbon6.dev/docs/background/"><meta property="og:image" content="https://carbon6.dev/icon.png"></head><body><a class="skip" href="#main">Skip to content</a><header class="top"><div class="top-inner"><a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"><span>carbon6</span></a><nav aria-label="Site"><a href="/docs/" aria-current="page">Docs</a><a href="/guide/">Guide</a><a href="/install/">Install</a><a href="/changelog/">Changelog</a><a href="https://github.com/carbon6-dev/carbon6" aria-label="carbon6 on GitHub" class="gh"><span class="icon"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span><span class="gh-label">GitHub</span></a></nav></div></header><main id="main" class="wide"><div class="doc-layout"><nav aria-label="Docs" class="doc-nav"><p class="doc-nav-group">Start here</p><ul><li><a href="/docs/requirements/">Requirements</a></li><li><a href="/docs/architecture/">Architecture</a></li></ul><p class="doc-nav-group">An operating system for agents</p><ul><li><a href="/docs/os/">The OS</a></li><li><a href="/docs/packages/">Packages</a></li><li><a href="/docs/apps/">Apps and data</a></li><li><a href="/docs/knowledge/">Knowledge in the head</a></li><li><a href="/docs/explorer/">Realm explorer</a></li></ul><p class="doc-nav-group">Features</p><ul><li><a href="/docs/assistant/">The assistant</a></li><li><a href="/docs/subagents/">Subagents</a></li><li><a href="/docs/background/" aria-current="page">Background work and session messages</a></li><li><a href="/docs/memex/">Memex</a></li><li><a href="/docs/decks/">Slide decks</a></li></ul><p class="doc-nav-group">Project</p><ul><li><a href="/docs/releases/">Releases and CI</a></li><li><a href="/docs/site/">The website</a></li></ul><p class="doc-nav-group">Designs on the shelf</p><ul><li><a href="/docs/measurement/">Measurement</a></li><li><a href="/docs/follow-through/">Follow-through</a></li></ul></nav><article class="prose"><h1>Background work and session messages — Design</h1><div><p>Status: built (2026-10-31), steps 1–4; §9 lists what each leaves to later.</p>
+<p>The main agent stays free to talk while its work runs in the background. A background task that ends always reaches its session, whether the session is mid-turn, idle or reloaded after a restart. Sessions can also message each other within a realm, across workers, fire and forget.</p>
+<h2 id="1-where-things-stand">1. Where things stand</h2>
+<ul>
+<li><strong>Claude Code ran one process per turn</strong> (before step 1). carbon6 started <code>claude -p</code>, wrote the prompt to stdin and closed it. The CLI does not exit at its first <code>result</code>. It waits for its background tasks, takes each <code>task_notification</code> and starts a turn of its own on it. It exits when none are left, or when <code>CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS</code> runs out (default 10 minutes), killing the tasks still running. carbon6 read until the process exited, so one carbon6 turn stayed running for as long as any background task did. As a result:
+<ul>
+<li>Your messages wait in the inbox until the process exits ("inputs that arrive mid-turn are left in the inbox and start the next turn").</li>
+<li>Esc kills the process group, background tasks included. They are marked lost.</li>
+<li>A background task that never ends, such as a server, keeps the turn open for good.</li>
+</ul>
+</li>
+<li><strong>carbon6's <code>Task</code> and <code>SendMessage</code> for Claude Code were foreground only</strong> (before step 2), because nothing could deliver their notices.</li>
+<li><strong>Notices live in memory until a turn takes them.</strong> That covers background-task ends (<code>task_event</code>), subagent reports (<code>ChildReport</code>), the inbox, <code>deferred</code> and the hourly counter <code>auto_turns</code>. The head only redelivers your own messages, so a worker restart, or an actor that stops after a failed journal write, drops any notice not yet taken.</li>
+<li><strong>Held notices wait for your next message.</strong> Over <code>AUTO_TURNS_PER_HOUR</code> (20), a notice goes to <code>deferred</code>, and nothing retries it when the hour frees up. A fan-out of subagents plus a few shell tasks reaches 20 quickly.</li>
+<li><strong>Sessions cannot message each other.</strong> <code>SendMessage</code> reaches only the caller's own subagents, in process, on the same worker (<code>subagent.rs:424-452</code>). The head can put a user message into any session on any worker, durably (<code>sessions::send_input</code>). It cannot send a notice, and no tool asks it to message another session.</li>
+</ul>
+<h3 id="what-streaming-input-does-tested-2026-10-30-cli-21311">What streaming input does (tested 2026-10-30, CLI 2.1.311)</h3>
+<p><code>claude -p --input-format stream-json --output-format stream-json --verbose --replay-user-messages</code>:</p>
+<ul>
+<li><strong>The process stays up between turns.</strong> Closing stdin makes it exit 0.</li>
+<li><strong>Each turn runs from <code>system/init</code> to <code>result</code>.</strong></li>
+<li><strong>It wakes itself.</strong> A background task that ends while the process is idle gets a <code>task_notification</code>, and the CLI starts a turn of its own on it. That turn has no echoed user message.</li>
+<li><strong>A message written mid-turn joins the running turn</strong> at its next model call. With <code>--replay-user-messages</code> it is echoed back when the CLI takes it, not when it was written.</li>
+<li><strong><code>{"type":"control_request","request_id":…,"request":{"subtype":"interrupt"}}</code> stops the running turn.</strong> The CLI answers <code>control_response</code> success, then sends <code>result</code> with <code>error_during_execution</code>. Background commands keep running and still wake the agent later. A queued message becomes the next turn.</li>
+<li><strong>But an interrupt also ends Claude Code's own background agents</strong> (tested 2026-11-01, CLI 2.1.311). An Agent-tool subagent started with <code>run_in_background</code> (<code>task_type: local_agent</code>, <code>is_backgrounded: true</code>) was still working when an interrupt arrived during a later turn. The CLI then sent <code>task_updated</code> with <code>patch.status: "killed"</code> and <code>task_notification</code> with <code>status: "stopped"</code> for it, and for the agent's own command, and <code>background_tasks_changed</code> listed no tasks. A background command (<code>local_bash</code>) survives an interrupt (tested 2026-10-30). The protocol has no known way to interrupt only the main turn.</li>
+<li><strong>The echo carries the <code>uuid</code> we sent</strong> (<code>isReplay: true</code>). <code>result</code> also lists the inputs that turn took (<code>user_message_uuids</code>).</li>
+<li><strong><code>set_model</code> switches the model in place.</strong> It answers with the new model and echoes a local command, with a <code>uuid</code> of its own.</li>
+<li><strong><code>stop_task</code> with the CLI's <code>task_id</code> stops one background task.</strong> Its <code>task_notification</code> says <code>stopped</code>.</li>
+<li><strong>Closing stdin while a task runs:</strong> the CLI waits for the task, takes its notification in a turn of its own, then exits.</li>
+<li><strong>An unknown control request</strong> gets <code>control_response</code> with <code>subtype: "error"</code>.</li>
+</ul>
+<h2 id="2-goals">2. Goals</h2>
+<ol>
+<li>Messaging a Claude Code session while it works reaches it at its next step, as in carbon6's own sessions.</li>
+<li>Esc stops the turn, not its background work. (Claude Code's own background agents stop with it, which carbon6 can't prevent; see §1.)</li>
+<li>Every background task that asked to notify reaches its session, through restarts and the hourly limit.</li>
+<li>carbon6's <code>Task</code> and <code>SendMessage</code> run in the background under Claude Code too.</li>
+<li>A session can send a message to another session in its realm, on any worker.</li>
+</ol>
+<p>Not goals:</p>
+<ul>
+<li>Background tasks that survive a worker restart (shells run detached, then reattached). That is later work.</li>
+<li>Messages across realms (grants). That is later work too.</li>
+<li>Ask-and-wait messages between sessions.</li>
+</ul>
+<h2 id="3-words">3. Words</h2>
+<ul>
+<li><strong>Notice:</strong> input the agent did not get from you: a background task's end, a subagent's report, or a session message. It joins a running turn at its next step. In an idle session it either starts a turn (<strong>wakes</strong> it) or is <strong>held</strong> for your next message.</li>
+<li><strong>Self-started turn:</strong> a turn the Claude Code CLI starts on its own <code>task_notification</code>.</li>
+<li><strong>Session message:</strong> a notice sent by another session's agent with <code>message_session</code>.</li>
+</ul>
+<h2 id="4-a-long-lived-claude-code-process">4. A long-lived Claude Code process</h2>
+<h3 id="lifecycle">Lifecycle</h3>
+<ul>
+<li><strong>Start.</strong> A Claude Code session's actor starts its process with the first input that needs it. It passes <code>--input-format stream-json --replay-user-messages</code>, plus today's flags (<code>--resume</code> or <code>--session-id</code>, model, effort, settings and <code>--mcp-config</code>). A new conversation's preamble goes in front of its first message, as now.</li>
+<li><strong>Keep it up</strong> while any of these holds:
+<ul>
+<li>a turn is running;</li>
+<li>a native background task is running (<code>Background::list</code>, kind <code>claude_code</code>);</li>
+<li>a carbon6 background subagent of the session is running;</li>
+<li>the last turn ended less than <code>claude_code_idle_minutes</code> ago (default 15).</li>
+</ul>
+</li>
+<li><strong>Close it</strong> by closing stdin, and kill the process group if it hasn't exited within 10 s. The next input starts a new process with <code>--resume</code>.</li>
+<li><strong>The model is switched in place</strong> with <code>set_model</code> at the next turn, so a switch keeps the process and its tasks.</li>
+<li><strong>Restart it</strong> when what it was started with changes and no background task would be lost: its conversation, its effort or its hooks (<code>claude_code::Launch</code>). While tasks run, the old process carries on.</li>
+<li><strong>A handoff to carbon6's own loop</strong> waits while Claude Code's own tasks run (§8), then stops the process (<code>Process::stop</code>).</li>
+<li><strong>The CLI's own wait limit</strong> (<code>CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS</code>) applies only once its input is closed (tested 2026-10-31: with input open, a task outlived a 15-second limit and woke the agent). carbon6 closes it only when idle with no tasks, or when the worker is gone, so the limit is set to 5 seconds: a process whose worker crashed stops its tasks and exits instead of working on unread.</li>
+<li><strong>The idle time</strong> is the <code>claude_code_idle_minutes</code> setting (default 15).</li>
+</ul>
+<h3 id="inputs">Inputs</h3>
+<ul>
+<li>The actor writes each input to stdin as soon as it has expanded it: commands, mentions and <code>UserPromptSubmit</code> hooks run as today. It no longer waits for the turn to end.</li>
+<li><strong>Inputs that start a turn</strong> are logged with <code>TurnStarted</code> when they are written, as before.</li>
+<li><strong>Inputs written during a turn</strong> wait in an <code>unconfirmed</code> list. Each is written with a <code>uuid</code>; its echo, or the <code>result</code> listing it, confirms it. On confirmation the turn appends that input's <code>UserMessage</code>, so the log holds what the model saw, in the order it saw it. The head's command row becomes done then, as now.</li>
+<li><strong>Background work keeps a session showing as running.</strong> A session's displayed status already counts its running side chats and subagents (docs/activity.md, "Session indicators"); it counts its running background tasks too. The head keeps them in <code>running_tasks</code> (migration 0059) from the <code>BackgroundTask</code> events it ingests, and <code>Session.tasks_running</code> counts those that tell the agent when they end plus all of Claude Code's own, which carry no such flag; <code>Session.servers_running</code> counts servers and watchers (<code>notify: false</code>), which don't keep it running. <code>display_status</code> and the finished notification follow <code>tasks_running</code>. In the session, a quiet line above the message box ("⏳ 1 task running · 1 server ›") opens the Tasks list, where each task has Inspect and Stop; it never shows the commands. Preview and decisions: doc:01a19626-9a15-7120-9780-560c6f1f6d55.</li>
+<li><strong>With the agent, not queued.</strong> Once an input reaches the agent while it works (written to the Claude Code process, or pushed into a running carbon6 turn's inbox), the worker logs <code>InputDelivered{command_id}</code>. The head sets the command's <code>with_agent</code> (migration 0058), and the queue API's <code>QueuedInput.with_agent</code> says so. In the UI a queued message is dashed; one with the agent is solid, with <strong>⏵ Send now</strong>. The agent reads input only between steps, so behind a long tool call it waits until that call ends. "Queued" means only that the head holds it (the worker is offline, or it waits for the session's turn to start).</li>
+<li><strong>Send and Send now.</strong> While the agent works, the message box has one <strong>Send ▾</strong> button. <strong>Send</strong> (Enter, or ⌘/Ctrl+Enter, the only key that sends on a touch screen) gives the message to the agent for its next step. <strong>Send now</strong> (⌘/Ctrl+Shift+Enter, or from ▾) stops the current step first: the message stays in the box until the turn has stopped (15 s at most), then starts the next turn. <strong>⏵ Send now</strong> on a message already with the agent only stops the step: the agent takes the message as its next turn, as Claude Code's CLI does with what it was given before an interrupt, and carbon6's own loop now does too (an interrupted turn no longer takes waiting input into itself; <code>Turn::run</code>).</li>
+<li><strong>Inputs that may join a turn</strong> are those <code>Inbox::join</code> gives. A <code>/compact</code> or a model switch next in line waits for a turn of its own.</li>
+<li><strong>If the process exits</strong> with inputs it never took, they go back to the front of the inbox for the next process.</li>
+<li><strong>Images</strong> go to Claude Code as image blocks; before, they were replaced by a note.</li>
+</ul>
+<h3 id="turns">Turns</h3>
+<ul>
+<li><strong><code>system/init</code></strong> → <code>TurnStarted</code>; the session is running.</li>
+<li><strong><code>result</code></strong> → <code>TurnEnded</code>:
+<ul>
+<li><code>success</code> → Completed;</li>
+<li><code>error_during_execution</code> after our interrupt → Interrupted;</li>
+<li>anything else → Error.</li>
+</ul>
+</li>
+<li><strong>A turn with no confirmed input before it</strong> is self-started. Before its <code>TurnStarted</code>, the actor appends a <code>UserMessage</code> with <code>command: "task-notification"</code>. Its text is the summaries of the <code>task_notification</code>s seen since the last <code>result</code>, so the transcript shows why the agent woke. The UI labels it "woken by bg…".</li>
+<li><strong>The mapper</strong> keeps its per-process state (calls, mirrored subagents, native tasks) across turns. It closes mirrored subagents at their call's result, as now, and at process exit.</li>
+<li><strong>Self-started turns</strong> don't count toward the hourly limit. carbon6 can't prevent them without killing the process; it only shows them.</li>
+</ul>
+<h3 id="stopping">Stopping</h3>
+<ul>
+<li><strong>Esc</strong> sends the interrupt request. If no <code>result</code> arrives within 5 s, the turn falls back to SIGINT, then SIGKILL, of the process group, and marks the native tasks lost. Background commands survive the interrupt request; Claude Code's own background agents don't: the CLI stops them with the turn, and they're recorded as stopped (§1). Stop and Send now send the same request, so they stop those agents too. carbon6's own background subagents (<code>mcp__carbon6__Task</code> with <code>run_in_background</code>) run in carbon6's loop and aren't affected.</li>
+<li><strong>Stopping one task.</strong> The Tasks control's Stop works for Claude Code's tasks too: the worker sends <code>stop_task</code> with the CLI's id, and the task reads "stopped by you". This replaces the planned Stop all.</li>
+<li><strong>Worker restart.</strong> A running process is recorded in <code>&lt;state&gt;/claude/&lt;conversation&gt;.pid</code> (its process group and conversation; <code>Process::record_in</code>), and the record goes when the process does. At startup, before any session resumes, <code>recover()</code> stops every recorded process that is still a <code>claude</code> running that conversation (<code>sweep_orphans</code>; a reused process id is left alone), SIGINT then SIGKILL. Its native tasks were recorded as started without an end, so the session's reload records them lost, and the agent is told (below). The conversation resumes on the next input. A process dropped without being closed takes its process group with it.</li>
+<li><strong>Lost Claude Code tasks are told to the agent.</strong> Claude Code delivers its own tasks' notices, except for a task lost with its process (a worker restart, a crash of the CLI, a handoff). Then carbon6 sends the agent a notice naming the task, saying that files it changed stay and that it may need redoing. The notice wakes an idle session, within the hourly limit.</li>
+</ul>
+<h3 id="carbon6s-tools-and-notices">carbon6's tools and notices</h3>
+<ul>
+<li><strong>Which of carbon6's tools Claude Code gets</strong> is a setting: Settings → Agents → "carbon6 tools in Claude Code sessions" (<code>claude-code-tools</code>, per realm; <code>CreateSession.claude_code_tools</code>, field 33, with <code>claude_code_tools_chosen</code>, 34). By default it is the bridge's tools: <code>Task</code>, <code>SendMessage</code>, <code>TaskOutput</code>, <code>TaskStop</code>, <code>doc</code>, <code>MessageSession</code>, <code>ListSessions</code>. The others that may be chosen are carbon6's own, without those Claude Code has equivalents of (files, shell, web, plan, skills, its own background tasks): <code>PublishFile</code>, <code>Remember</code>, <code>Forget</code>, <code>Notify</code>, <code>TodoAdd</code>, decisions, task cards, kits, templates, apps, work, series and records, the API reference, and the memex, mail, calendar and chat tools where the session has them (<code>session::claude_code_tool_names</code>). Names are accepted in any profile's naming; an empty choice means none. A routing rule's tool list narrows them further, except the subagent tools and <code>doc</code>, which it never narrowed.</li>
+<li><strong>carbon6's guidance comes with the tools that need it</strong>, in the bridge's MCP <code>instructions</code> (Claude Code puts them in its system prompt): the memory section with your notes when <code>Remember</code> or <code>Forget</code> is chosen, the task-card guidance (<code>session.task_cards</code>) with both task-card tools, the memex brief with the memex tools (<code>session::claude_code_guidance</code>). Without them, the instructions are one line, as before.</li>
+<li><strong>carbon6's policies apply to the bridge.</strong> Claude Code runs the head's command hooks itself (<code>--settings</code>), and they see <code>mcp__carbon6__*</code> calls too, but it doesn't know carbon6's policies (Settings → Policies). So the bridge checks each call against the session's policies before running it (<code>Policies::check</code>), under both the tool's own name (<code>doc</code>) and the name Claude Code knows it by (<code>mcp__carbon6__doc</code>). A deny rule refuses the call; an ask rule holds it, logged as an approval at the Claude Code call it belongs to, until you answer in the UI (an interrupt ends the wait). Tools exposed over the bridge from now on get this for free.</li>
+<li><strong>The MCP bridge registration lasts as long as the process,</strong> not one turn (built in step 1). Its <code>Entry</code> holds the running turn's cancel token, set at each turn's start (<code>Registration::set_cancel</code>), so stopping a turn still stops its foreground subagents.</li>
+<li><strong><code>Task</code> and <code>SendMessage</code> can run in the background</strong> (step 2). The bridge also serves <code>TaskOutput</code> and <code>TaskStop</code> (<code>mcp__carbon6__…</code>): carbon6's <code>bash_output</code> and <code>kill_shell</code>, for carbon6's subagents only, since Claude Code's own tools don't know carbon6's ids. <code>Task</code> names <code>mcp__carbon6__TaskStop</code> as what stops one. A report reaches the process as described next: it joins a running turn or starts one, and if the process has closed in the meantime, the next one resumes the conversation and takes it.</li>
+<li><strong>A carbon6 notice for a Claude Code session</strong> (a background subagent's report, a session message) follows the usual rule:
+<ul>
+<li>written to stdin now if a turn is running;</li>
+<li>written now if the session is idle and wakes;</li>
+<li>held otherwise.
+It is wrapped as <code>&lt;task-notification&gt;</code> or <code>&lt;session-message&gt;</code>, as in carbon6's own sessions.</li>
+</ul>
+</li>
+</ul>
+<h2 id="5-notices-that-are-never-lost">5. Notices that are never lost</h2>
+<h3 id="record-before-deliver">Record before deliver</h3>
+<ul>
+<li>When a notice is queued for a session, its actor first appends <code>NoticeQueued{command_id, text, command, wake}</code> to that session's log (<code>Actor::notice</code>). Then it delivers it: into the inbox, or held (<code>deliver_notice</code>). The head stores the event but leaves it out of the transcript, which shows the notice when a turn takes it.</li>
+<li>Its <code>command_id</code>:
+<ul>
+<li>a background task's end: <code>task:&lt;task_id&gt;:&lt;state&gt;</code>, so the same end is never recorded twice;</li>
+<li>a subagent's report: <code>subagent:&lt;uuid&gt;</code> (it is recorded in the parent's log before anything else, so it needs no fixed id);</li>
+<li>a remote subagent's report (<a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/remote-subagents.md">remote-subagents.md</a>), which the head sends until the parent logs <code>SubagentReported</code>: <code>subagent:&lt;the head's command id&gt;</code>, so one sent again is not told twice;</li>
+<li>for a session message (step 4), the head's command id, which also gains <code>from_session_id</code>.</li>
+</ul>
+</li>
+<li><strong>When a turn takes the notice,</strong> its <code>UserMessage</code> has the same <code>command_id</code>.</li>
+<li><strong>On load</strong> (<code>SessionManager::load</code>, <code>notices_of</code>), every <code>NoticeQueued</code> whose <code>command_id</code> has no <code>UserMessage</code> is delivered again, under the same rule as when it first arrived (without announcing a hold again). That covers worker restarts and actors that stopped mid-turn. A Claude Code session's notice counts as taken once the CLI echoes it.</li>
+<li><strong>Later (step 4):</strong> the head treats <code>NoticeQueued{command_id}</code> as a command applied, so it doesn't resend a session message the worker has already recorded.</li>
+<li><strong>Waiting notices are shown.</strong> The events API carries <code>NoticeQueued</code> (not drawn in the transcript), so the UI knows a notice no turn has taken yet. While the session is idle, a pill above the message box lists them ("2 notices waiting for the agent", each with its first line and sender) with <strong>Deliver now</strong>: <code>POST /api/v1/sessions/{id}/notices/deliver</code> sends the worker <code>ReleaseNotices</code>, and the held notices start one turn, whatever the hourly limit.</li>
+<li><strong>Restart order.</strong> <code>recover()</code> already writes <code>lost</code> for background tasks open at a restart, and those <code>lost</code> ends go through the same path.</li>
+</ul>
+<h3 id="the-hourly-limit">The hourly limit</h3>
+<ul>
+<li>When a notice is held for the limit, the actor waits until the oldest automatic turn leaves the hour (<code>retry_at</code> in the actor's loop). If the session is still idle then, all held notices start <strong>one</strong> turn together (<code>release_held</code>). Notices that arrive together already share a turn.</li>
+<li><code>auto_turns</code> is rebuilt on load from the log: the turns of the last hour whose inputs were all notices. So a restart doesn't reset the limit. Claude Code's self-started turns record no <code>NoticeQueued</code>, so they don't count.</li>
+<li>The limit is a setting: Settings → Agents → Limits (<code>subagent-limits</code>: <code>auto_turns_per_hour</code>, default 20; <code>claude_code_idle_minutes</code>, default 15), sent in each <code>CreateSession</code>. A session keeps the values it started with.</li>
+<li>Held without <code>wake</code> (a subagent's report on a turn you started without <em>Wake the parent</em>) still means "with your next input", as in subagents.md §6. It is now recorded, so it survives a restart.</li>
+</ul>
+<h2 id="6-session-messages">6. Session messages</h2>
+<h3 id="tools">Tools</h3>
+<ul>
+<li><strong><code>message_session</code></strong> (<code>MessageSession</code> in the Claude tool set, <code>mcp__carbon6__MessageSession</code> for Claude Code) takes <code>to</code> (a session id) and <code>message</code>. It returns at once:
+<ul>
+<li>"sent";</li>
+<li>"queued: its worker is offline";</li>
+<li>or why it was refused.</li>
+</ul>
+</li>
+<li><strong><code>list_sessions</code></strong> (<code>ListSessions</code>, <code>mcp__carbon6__ListSessions</code>) lists the realm's top-level sessions, so the agent can find a target, most recently active first, at most 50, each followed by its side chats ("side chat of <em>X</em>"), without the caller. It takes an optional <code>query</code> (matched against title, labels and folder) and returns each session's id, title, state (running, idle or offline), worker and labels. Archived sessions are not listed.</li>
+<li>Both are built-in tools in every carbon6 profile (<code>c6_tools::messages</code>), so they are valid names in routing rules' tool lists and named agents' tool lists. A Claude Code session gets them over the MCP bridge on any connection, as its tool list allows.</li>
+<li><code>message_session</code> is a separate tool from <code>SendMessage</code>. <code>SendMessage</code> delegates to the caller's own subagent and may wait for its report; this one only delivers.</li>
+</ul>
+<h3 id="path">Path</h3>
+<pre><code>message_session ─► HeadCall session.message {session_id, to, message, hops}
+                   head: checks (below) ─► an input from that session ─► commands table ─► target's worker
+                                                       (durable; redelivered on reconnect)
+</code></pre>
+<ul>
+<li><strong>Proto.</strong>
+<ul>
+<li><code>UserInput</code> gains <code>from_session_id</code> (10), <code>from_title</code> (11) and <code>hops</code> (12); <code>UserMessage</code> the same fields as 9–11. An input with <code>from_session_id</code> is a notice, not your message: no commands, mentions or prompt hooks.</li>
+<li><code>UserMessage</code> carries the same fields; <code>NoticeQueued</code> carries them and the prompt.</li>
+</ul>
+</li>
+<li><strong>The target's worker</strong> appends <code>NoticeQueued</code> and queues it, with <code>wake: true</code> and the hourly limit (§5). The head marks the command done when it ingests that <code>NoticeQueued</code>, so a held message isn't sent again on reconnect.</li>
+<li><strong>The recipient sees</strong> <code>&lt;session-message from="&lt;id&gt;" title="&lt;title&gt;"&gt;…&lt;/session-message&gt;</code>, followed by the realm's <code>session.message_received</code> prompt (Settings → Prompts). The prompt says how to reply with <code>message_session</code> and to reply only when an answer is needed.</li>
+<li><strong>The sender is the calling session itself,</strong> a side chat included, so replies go to it. Subagents don't get the tools (<code>messages::is_message_tool</code>, as task cards): their head calls go in their top-level session's name, and what they find goes to their parent. Its realm decides what it may reach.</li>
+</ul>
+<h3 id="head-checks">Head checks</h3>
+<p><code>sessions::message_from</code>:</p>
+<ul>
+<li>The target exists and is in the sender's realm. Other realms are refused until grants cover messaging.</li>
+<li>The target is not the sender, not archived, not <code>observed</code>, not a subagent and not failed. A subagent's turns report to its parent, which would be told about work it never asked for. Side chats may be messaged.</li>
+<li><strong>Hops.</strong> A session's hop count is that of the last session message delivered to it (<code>SessionTools::message_hops</code>); a message it sends carries one more. Your own messages reset it to 0. Beyond <code>max_message_hops</code> (default 4) the head refuses, so two agents cannot keep waking each other.</li>
+<li><strong>Rate.</strong> At most <code>messages_per_hour</code> (default 30) per sending session, counted in the head's memory (a head restart starts it again). The text is capped at 20,000 characters.</li>
+</ul>
+<h3 id="ui">UI</h3>
+<ul>
+<li><strong>Recipient:</strong> the message shows as a bubble with "✉ from <em>title</em>" above it, which opens that session. Its prompt (with the wrapper) is under the bubble, as for an expanded command.</li>
+<li><strong>Sender:</strong> the call's card reads "→ sent to <em>title</em> ↗" (the title from its result), which opens the session; the message is in the card.</li>
+<li><strong>Attributed, never yours:</strong> the activity preview ("✉ <em>title</em>: …"), a subagent's peek, the Markdown export ("## ✉ From <em>title</em>"), search (its own kind, "message from a session"), suggested next messages (not counted as yours) and the memex's reading of the session ("a message from session <em>title</em>").</li>
+</ul>
+<h2 id="7-settings-no-new-strings-in-code">7. Settings (no new strings in code)</h2>
+<table><thead><tr><th>Where</th><th>Name</th><th>Default</th></tr></thead><tbody>
+<tr><td>Settings → Agents → Limits (built)</td><td><code>claude_code_idle_minutes</code></td><td>15</td></tr>
+<tr><td>Settings → Agents → Limits (built)</td><td><code>auto_turns_per_hour</code></td><td>20</td></tr>
+<tr><td>Settings → Agents → Limits (built)</td><td><code>max_message_hops</code></td><td>4</td></tr>
+<tr><td>Settings → Agents → Limits (built)</td><td><code>messages_per_hour</code></td><td>30</td></tr>
+<tr><td>Settings → Prompts (built)</td><td><code>session.message_received</code></td><td>that it comes from another agent, and to reply only when needed</td></tr>
+</tbody></table>
+<h2 id="8-edge-cases">8. Edge cases</h2>
+<ul>
+<li><strong>The target is rewound past a session message.</strong> The message stays in the log, folded with the rewound events. The sender is not told.</li>
+<li><strong>A Claude Code target before §4 ships.</strong> A session message starts a turn between turns, as head input does today. §4 is built first.</li>
+<li><strong>The CLI exits on its own</strong> (a crash, or a sign-in that ran out). Unconfirmed inputs go back to the inbox, any open turn ends Error, and the next input starts a new process.</li>
+<li><strong>A handoff while background tasks run.</strong> A switch away from Claude Code waits while Claude Code's own tasks run (<code>Actor::handoff_waits</code>), since they would stop with its process; the log says so once, and messages after the switch wait with it. Claude Code may still wake for its tasks meanwhile. When they end, or you stop them in the Tasks list, the switch goes ahead. carbon6 background tasks continue in either runtime.</li>
+<li><strong>Two sessions message each other at once.</strong> Each gets the other's message as a notice. The hop count stops a loop of replies.</li>
+</ul>
+<h2 id="9-steps">9. Steps</h2>
+<ol>
+<li><strong>Long-lived Claude Code process (§4 lifecycle, inputs, turns, stopping).</strong> Built 2026-10-30: <code>claude_code::Process</code>, <code>session::claude_turn</code> and the actor's idle branches. The fake <code>claude</code> in the tests reads stream-json from stdin. Tests: one process serves every turn; a message sent mid-turn joins the turn; Esc leaves a background task running and the turn Claude Code starts when it ends is logged as woken. Cleanup after a worker crash, and notices for lost Claude Code tasks, followed on 2026-10-31. (The idle time became a setting in step 3.)</li>
+<li><strong>carbon6's notices and background tools under Claude Code (§4).</strong> Built 2026-10-31: bridge registration per process (in step 1); <code>Task</code> and <code>SendMessage</code> with <code>run_in_background</code>, plus <code>TaskOutput</code> and <code>TaskStop</code>. Test: a background subagent's call returns at once, its report reaches the same process as a message, and that message's turn is logged as a <code>task-notification</code>.</li>
+<li><strong>Notices that are never lost (§5).</strong> Built 2026-10-31: <code>NoticeQueued</code>, re-delivery on load, the limit's timer, and both settings. Tests: a log's pending notices and automatic turns (<code>notice_tests</code>); a notice held by the limit survives a worker restart and reaches the agent once, with your next message (<code>it/notices.rs</code>). The head treating <code>NoticeQueued</code> as applied came with step 4, and the waiting-notices pill with Deliver now on 2026-10-31.</li>
+<li><strong>Session messages (§6).</strong> Built 2026-10-31: the proto fields, <code>session.message</code> and <code>session.sessions</code> in <code>fabric.rs</code>, the tools (also over the MCP bridge), the head's checks, the prompt and the recipient's bubble. Test (<code>it/messages.rs</code>): a session lists the realm's sessions and messages one on another worker, which wakes with it as a message from that session; its reply, beyond a chain limit of 1, is refused. The sender's card and attribution followed on 2026-10-31. Left for later: grants for other realms.</li>
+</ol>
+<h2 id="10-decisions-settled-2026-10-30">10. Decisions (settled 2026-10-30)</h2>
+<ol>
+<li>Claude Code sessions come first; they are what the main agent mostly runs on.</li>
+<li>Session messages are fire and forget, within a realm. Grants for other realms are deferred.</li>
+<li>An idle Claude Code process closes after 15 minutes, never while a background task runs.</li>
+<li>Esc interrupts only the turn. Background work is stopped task by task (Claude Code's tasks too, with <code>stop_task</code>), rather than by the planned Stop all. Exception, found 2026-11-01: the CLI's interrupt also stops its own background agents (§1). Follow-ups: ask before an interrupt while background agents run, which needs the native <code>task_type</code> recorded; and steer long background work to carbon6's subagents.</li>
+<li>Session messages get their own tool, <code>message_session</code>, rather than a wider <code>SendMessage</code>.</li>
+<li>The CLI's self-started turns don't count toward the hourly limit; carbon6 only shows them.</li>
+</ol>
+<h2 id="11-open">11. Open</h2>
+<p>Settled 2026-10-31: side chats are listed under their sessions; subagents don't get the messaging tools.</p>
+</div><p class="source"><a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/background.md">docs/background.md on GitHub</a></p></article><aside class="doc-aside"><nav aria-label="On this page" class="toc"><p class="toc-title">On this page</p><ul><li><a href="#1-where-things-stand">1. Where things stand</a></li><li><a href="#2-goals">2. Goals</a></li><li><a href="#3-words">3. Words</a></li><li><a href="#4-a-long-lived-claude-code-process">4. A long-lived Claude Code process</a></li><li><a href="#5-notices-that-are-never-lost">5. Notices that are never lost</a></li><li><a href="#6-session-messages">6. Session messages</a></li><li><a href="#7-settings-no-new-strings-in-code">7. Settings (no new strings in code)</a></li><li><a href="#8-edge-cases">8. Edge cases</a></li><li><a href="#9-steps">9. Steps</a></li><li><a href="#10-decisions-settled-2026-10-30">10. Decisions (settled 2026-10-30)</a></li><li><a href="#11-open">11. Open</a></li></ul></nav></aside></div></main><footer class="bottom"><div class="bottom-inner"><span>carbon6 0.3.11 · <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-MIT">MIT</a> or <a href="https://github.com/carbon6-dev/carbon6/blob/main/LICENSE-APACHE">Apache-2.0</a></span><span><a href="https://github.com/carbon6-dev/carbon6">Source</a> · <a href="https://github.com/carbon6-dev/carbon6/releases">Releases</a> · <a href="https://github.com/carbon6-dev/carbon6/security">Report a vulnerability</a></span></div></footer></body></html>
