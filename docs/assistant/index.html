@@ -72,6 +72,8 @@
 <li><strong>Secrets:</strong> see <code>c6_call</code>. API tokens, enrollment tokens and login links reach you only. The transcript keeps a redacted copy.</li>
 <li><strong>Scope:</strong> by default the assistant's memex scope is the default one, so no mail, chat, calendars or photos. It holds for everything the assistant reads of the memex: its memex tools and the operations it calls (mail, chat, calendar and contacts operations, searches, commitments, the summaries the memex writes for it), however they reach the memex; an operation's own <code>scope</code> can only narrow it. A scope rule can widen it; its labels are <code>assistant</code>. Mail can't instruct it unless you let mail in. Even then, destructive operations still ask first.</li>
 <li><strong>Identity:</strong> it acts as you, with your permissions, and every call is logged as a tool call in its session.</li>
+<li><strong>Head restarts:</strong> an assistant turn cannot survive its head process. On startup, an open turn belonging to the head is closed with <code>worker_restarted</code>, preserving the events and tool results already recorded. Its pending approvals expire and its questions are cancelled, settling their decision cards too. It is not resumed or retried automatically; sessions on external workers are left alone.</li>
+<li><strong>Model waits:</strong> each model request has a ten-minute deadline, including transport retries, and a five-minute idle limit after its first model event. SSE keepalive bytes do not reset these limits. Expiry ends the turn with a phase-specific error, without automatically retrying that expired request or replaying completed tools. Tool execution and approval waits are not subject to the model deadline. Cancelling a turn still cancels either model-wait phase immediately.</li>
 </ul>
 <h2 id="7-build-order">7. Build order</h2>
 <ol>
@@ -165,10 +167,69 @@
 </ul>
 <h3 id="realms-os-step-8">Realms (OS step 8)</h3>
 <ul>
-<li><strong>A conversation works in one realm:</strong> the realm whose page you open it from. From the console it is root, which administers carbon6 and reaches every realm.</li>
-<li><strong>Its operations are admitted like that realm's API token.</strong> It reaches the realm's sessions, collections, decisions, triggers, views, series and knowledge. Administration (workers, connections, realms, grants, settings) answers 403, and the assistant is told to send you to the console for it.</li>
-<li><strong>Its instructions</strong> are the <code>assistant.base</code> prompt as the realm has it (a realm can override it), with <code>{{realm}}</code> naming the realm.</li>
-<li><strong>Commons</strong> is not a place to work in.</li>
+<li>
+<p><strong>A conversation works in one realm:</strong> the realm whose page you open it from. From the console it is root, which administers carbon6 and reaches every realm.</p>
+</li>
+<li>
+<p><strong>Its operations are admitted like that realm's API token.</strong> It reaches the realm's sessions, collections, decisions, triggers, views, series and knowledge. Administration (workers, connections, realms, grants, settings) answers 403, and the assistant is told to send you to the console for it.</p>
+</li>
+<li>
+<p><strong>Its instructions</strong> are the <code>assistant.base</code> prompt as the realm has it (a realm can override it), with <code>{{realm}}</code> naming the realm.</p>
+</li>
+<li>
+<p><strong>Commons</strong> is not a place to work in.</p>
+</li>
+<li>
+<p><strong>From root it starts sessions in a realm, with your approval each time.</strong> Sessions never run in root (or commons), so for work on a machine the assistant in root calls <code>sessions.create</code> naming the realm. Before anything starts you get an approval (also a decision and a notification) that names the realm, the worker and, when given, the folder, model, title and labels, with the first message in full. The first message is the one way root's knowledge reaches the realm, so the call carries nothing else: no attachments, work item, to-do or references, and no secret you gave the assistant. The first message is at most 4,000 characters, so the approval always shows all of it.</p>
+<ul>
+<li><strong>Allow:</strong> the session starts in that realm as that realm's API token would start it, under the realm's policies, routes, connections and workers and none of root's. It is labelled <code>started-by:console</code>. The assistant gets the session back, with its id, and can follow it, since root reads every realm.</li>
+<li><strong>Deny</strong> (or no answer): nothing starts, and the assistant is told not to try another way.</li>
+<li>In any other realm nothing changes: the assistant starts sessions only in its own realm, without asking.</li>
+</ul>
+</li>
+<li>
+<p><strong>Whatever else it puts in a realm from root waits for your approval the same way.</strong> Root reads every realm, so anything the assistant there writes into a realm could carry what that realm should not know (another realm's data, root's administration). Each such call asks first: the approval names the realm and what it acts on (the session's title, the template, the trigger, the decision, the work item…) and shows exactly what goes there, in full: a message's or side chat's text, a template's or workflow's input, else the operation and its whole input as JSON. It refuses what the approval could not show: files, attachments, a model switch with a message, a secret you gave the assistant, more than 4,000 characters.</p>
+<ul>
+<li><strong>Its realm:</strong> an existing object's own (a session, trigger, decision, memory note, work item or project); for anything new, documents and knowledge, the realm the call names (<code>realm</code> in its input, or <code>body.realm</code>), else home, where root's new things have always gone. Into root itself nothing is asked: that is root's own.</li>
+<li><strong>Allow:</strong> it runs as that realm's API token would, under the realm's rules and settings and none of root's, and is marked as the console's where carbon6 records who did something: a message reaches the session's agent as a message from “Ask in the console” (that conversation, like another session's, not yours); a side chat and a template's sessions are labelled <code>started-by:console</code>; a workflow run's trigger is <code>console</code>; documents, project changes and records are written by <code>console</code>.</li>
+<li><strong>Deny</strong> (or no answer): nothing happens, and the assistant is told not to try another way.</li>
+<li>In any other realm nothing changes: its assistant acts in its own realm without asking, as before.</li>
+</ul>
+</li>
+<li>
+<p><strong>What asks, and why.</strong></p>
+<table><thead><tr><th>Operations</th><th>Why it asks</th></tr></thead><tbody>
+<tr><td><code>sessions.create</code>, <code>sessions.send</code>, <code>sessions.side_chat</code>, <code>sessions.queue.edit</code></td><td>text goes to a realm's agent, or a session starts there</td></tr>
+<tr><td><code>templates.run</code>, <code>workflows.run</code>, <code>triggers.run</code>, <code>decisions.session</code></td><td>starts sessions or runs in the realm (a template's or workflow's input is text for its agents)</td></tr>
+<tr><td><code>triggers.create</code>, <code>triggers.update</code></td><td>a trigger acts in the realm later, with the input and action parameters you approved</td></tr>
+<tr><td><code>decisions.add</code>, <code>decisions.answer</code></td><td>a decision's text, or an answer's values and note, which go to the agent waiting on it</td></tr>
+<tr><td><code>memories.create</code>, <code>memories.update</code></td><td>memory notes are what the realm's sessions start with</td></tr>
+<tr><td><code>work.add</code>, <code>work.edit</code>, <code>work.attach</code>, <code>work.todos.add</code>, <code>work.todos.edit</code></td><td>work items and to-dos (a to-do's prompt is a session's first message)</td></tr>
+<tr><td><code>projects.add</code>, <code>projects.edit</code>, <code>projects.work</code>, <code>projects.links</code>, <code>projects.phases</code></td><td>a project's title, purpose, phases, links</td></tr>
+<tr><td><code>docs.create</code>, <code>docs.edit</code>, <code>docs.rename</code>, <code>docs.comment</code>, <code>docs.reply</code>, <code>docs.comments.edit</code></td><td>documents and comments the realm's agents read and answer</td></tr>
+<tr><td><code>collections.create</code>, <code>collections.update</code>, <code>records.create</code>, <code>records.put</code>, <code>series.create</code>, <code>series.update</code>, <code>series.record</code>, <code>views.act</code></td><td>the realm's data (a view's action may also start its template)</td></tr>
+<tr><td><code>apps.operations.call</code></td><td>an app's operation writes its data or starts its session, as the app</td></tr>
+<tr><td><code>memex.notes.create</code>, <code>memex.trails.append</code>, <code>memex.trails.update</code>, <code>memex.relations.write</code>, <code>claims.add</code>, <code>things.create</code>, <code>knowledge.record</code>, <code>knowledge.set</code>, <code>mail.drafts.set</code></td><td>knowledge the realm's agents search (from root, home's), and a reply box's draft a session may pick up</td></tr>
+<tr><td><code>docs.import</code>, <code>docs.add_file</code>, <code>memex.upload</code>, <code>memex.ingest</code></td><td>refused from root: a file cannot be shown in the approval; add it in the realm itself</td></tr>
+</tbody></table>
+</li>
+<li>
+<p><strong>What does not ask, and why.</strong></p>
+<table><thead><tr><th>Operations</th><th>Why not</th></tr></thead><tbody>
+<tr><td><code>settings.*</code> (skills, prompts, agents, templates, workflows, policies, routes…), <code>realms.*</code>, <code>grants.*</code>, <code>connections.*</code>, <code>workers.*</code>, <code>apps.install</code>/<code>upgrade</code>/<code>remove</code>, <code>installs.*</code>, <code>packages.*</code>, <code>google.client.put</code>, <code>google.connect</code>, <code>google.install</code>, <code>slack.client.put</code>/<code>install</code>/<code>connect</code>/<code>sync</code>, <code>docs.google_connect</code>, <code>decks.themes.put</code>, <code>work.settings.put</code>, <code>docs.settings.put</code></td><td>administration, root's own job (from root these write root's settings, which realms inherit); installs ask through their own decision</td></tr>
+<tr><td>Reads of every kind</td><td>root may read every realm</td></tr>
+<tr><td><code>sessions.update</code>, <code>sessions.labels.set</code>, <code>sessions.colour.set</code>, <code>sessions.subagent_model.set</code>, <code>sessions.seen</code>, <code>sessions.viewed</code>, <code>sessions.suggestion.seen</code>, <code>marks.set</code>, <code>attention.seen</code>, <code>work.seen</code>, <code>decisions.edit</code></td><td>housekeeping (a title, labels, a mark, seen, snooze or dismiss) that carries nothing to an agent</td></tr>
+<tr><td><code>sessions.interrupt</code>, <code>sessions.resume</code>, <code>sessions.notices.deliver</code>, <code>sessions.queue.dismiss</code>, <code>sessions.queue.pull</code>, <code>work.refresh</code>, <code>projects.refresh</code></td><td>steers a session or note with what is already in the realm (a resume uses the realm's own prompt)</td></tr>
+<tr><td><code>work.detach</code>, <code>work.merge</code>, <code>projects.detach</code>, <code>projects.merge</code>, <code>projects.docs</code>, <code>projects.plan</code>, <code>projects.proposed</code>, <code>projects.propose</code>, <code>projects.sessions.*</code>, <code>docs.restore</code>, <code>docs.export</code>, <code>docs.resolve</code>, <code>docs.comments.send</code>, <code>decks.bring_in</code></td><td>rearranges or sends on what is already in the realm</td></tr>
+<tr><td><code>memex.summarize</code>, <code>memex.review.decide</code>, <code>memex.commitment.set</code>, <code>memex.scan</code>, <code>google.sync</code>, <code>mail.requests.*</code>, <code>mail.triage.*</code>, <code>mail.drafts.link</code>, <code>mail.drafts.clear</code></td><td>made from the realm's own knowledge, or a status</td></tr>
+<tr><td><code>mail.draft</code>, <code>mail.modify</code>, <code>calendar.*</code>, <code>contacts.*</code>, <code>chat.*</code></td><td>your own Google and Slack accounts, outside carbon6; sending mail and deleting ask already (destructive)</td></tr>
+<tr><td><code>workers.fs.mkdir</code>, <code>workers.terminals.open</code>, <code>notifications.test</code></td><td>a machine's folder, a terminal you use yourself, a test notification</td></tr>
+<tr><td>Destructive operations (deletes, <code>sessions.rewind</code>, <code>mail.send</code>…)</td><td>ask already, as everywhere</td></tr>
+</tbody></table>
+</li>
+<li>
+<p><strong>Approvals are yours, in every realm.</strong> The assistant never allows or denies a tool call, a workflow step or an approve decision (<code>sessions.approvals.decide</code>, <code>workflows.steps.decide</code>, <code>decisions.answer</code> on an approve decision); it says what waits and that you answer it in its card. So a policy that holds a call for you can't be passed by an agent (<code>assistant::yours_to_approve</code>).</p>
+</li>
 </ul>
 <h2 id="9-open-questions">9. Open questions</h2>
 <ul>
