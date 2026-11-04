@@ -874,7 +874,7 @@ contents:
 <p>carbon6 already holds real data. Every step of the build order upgrades it to the new representation automatically, when the new version starts.</p>
 <h3 id="131-principles">13.1 Principles</h3>
 <ol>
-<li><strong>A backup first.</strong> Before a step changes data, the head copies its database (SQLite <code>VACUUM INTO</code>) next to it, with the version and time in the name. The memex does the same for its store. Backups stay until you delete them. <code>master.key</code> is never touched.</li>
+<li><strong>A backup first.</strong> Before a step changes data, the head copies its database (SQLite <code>VACUUM INTO</code>) next to it, with the version and time in the name. The memex does the same for its store. Each database keeps its newest 3 backups (Settings → Upgrades, <code>system.upgrades.backups.put</code>, at least 1); older ones are removed after a successful upgrade, when the head starts, and when the setting changes. The copy the last upgrade made is never removed. <code>master.key</code> is never touched.</li>
 <li><strong>All or nothing.</strong> Each step's migration runs in one transaction per database. If it fails, it rolls back and the head refuses to start, saying why. The database is unchanged, so the previous version still runs on it.</li>
 <li><strong>Nothing is lost.</strong> Every field moves somewhere. Anything without a place in the new shape is kept in a <code>legacy</code> field on the new record, never dropped.</li>
 <li><strong>Identity is kept.</strong> Session, item, thing and fact ids stay the same, so links, <code>@</code>-mentions and history keep working. Where an id has to change (action items' numbers become decision ids), a map is kept, so old references such as "action item #12" still resolve.</li>
@@ -892,6 +892,7 @@ contents:
 <li><strong>Backup:</strong> pending migrations are found by comparing the migrator with <code>_sqlx_migrations</code>. Before any runs, the database is copied with <code>VACUUM INTO</code> to <code>backups/&lt;name&gt;-v&lt;from&gt;-to-v&lt;to&gt;-&lt;UTC time&gt;.db</code>.</li>
 <li><strong>Checks:</strong> after migrating, every table's row count is compared with before. A table may shrink or vanish only if a pending migration names it in the store's <code>Plan</code> (<code>Allow</code>). <code>Check</code>s compare a query on the backup (attached as <code>before</code>) with one on the upgraded database.</li>
 <li><strong>Restore:</strong> a failed migration, lost rows or a failed check close the pool, put the backup back (removing the WAL files), and return an error naming the backup.</li>
+<li><strong>Pruning:</strong> <code>c6_core::upgrade::keep_backups(dir, n)</code> sets how many backups databases under <code>dir</code> keep; after a successful upgrade the oldest beyond <code>n</code> are removed, sorted by the time in their names. The head reads its setting (<code>upgrade_backups_keep</code>) from <code>c6h.db</code> before opening it, so its own upgrade already keeps what you chose, then prunes <code>c6h.db</code>, <code>knowledge/memex.db</code> and each realm's <code>memex.db</code> at start.</li>
 <li><strong>Reports:</strong> each upgrade's report is stored in the database's own <code>upgrades</code> table.</li>
 </ul>
 </li>
