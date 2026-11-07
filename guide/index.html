@@ -6,6 +6,7 @@
 <ol>
 <li>Sign in: run <code>c6h login-link</code> on the head and open the link it prints (it works once, for 15 minutes). Then add a passkey under <strong>Settings → Sign-in</strong>, and sign in with Touch ID, Face ID or a security key from then on. A new link always gets you back in.
 <ul>
+<li>If the head uses a non-default config, use the command printed at startup (for example, <code>c6h --config /etc/c6h/c6h.toml login-link</code>) so the link comes from the running head's database. Invalid-link errors name that same config. Run it as the service user, as above for .deb installs.</li>
 <li>To sign in another device (a phone), create a one-time code under <strong>Settings → Sign-in → Sign in another device</strong> and type it into that device's sign-in page. Codes work once, for 10 minutes; five wrong codes cancel all outstanding ones.</li>
 </ul>
 </li>
@@ -82,6 +83,9 @@ c6w run
 <p><strong>In the session, too:</strong> a session shows its own open decisions under its transcript, as <strong>Waiting for you</strong>, to answer right there. These are the questions its agent asked without stopping, the grants it asked for, and what it was started to work on. Its tool approvals and questions show in the transcript itself, as before.</p>
 </li>
 <li>
+<p><strong>Waiting on you:</strong> the session header's list includes its open decisions and task cards, its tool approvals and questions, and approvals/questions in its subagents at any depth. Each opens the answerable card. Subagent approvals/questions also stay visible just above the message box in the same amber style as held notices; <strong>Show</strong> opens the card in its thread, or its own session if the thread isn't drawn. Subagent approvals count in <strong>What needs you</strong> and use the same approval notifications and signed Allow/Deny links as a top-level session. Offered task cards still don't count in What needs you or send notifications.</p>
+</li>
+<li>
 <p><strong>The design:</strong> see <a href="/docs/os/">docs/os.md</a> §4.2 and <a href="/docs/follow-through/">docs/follow-through.md</a> §6.</p>
 </li>
 </ul>
@@ -110,6 +114,7 @@ c6w run
 <li><strong>Worker:</strong> its identity lives in <code>~/.local/state/c6w</code> (Linux) or <code>~/Library/Application Support/c6w</code> (macOS).
 <ul>
 <li>For Claude Code sessions, install <code>claude</code> on the worker and sign in there; set <code>C6_CLAUDE_BIN</code> if it is not on the worker's PATH.</li>
+<li>Optional ChatGPT plan limits: on the <strong>Workers</strong> page, under <strong>ChatGPT plan limits</strong>, check the worker to read limits from its installed, signed-in <code>codex</code>. Off by default; discovers Codex through the service user's login shell (<code>$SHELL -lic 'command -v codex'</code>, or <code>/bin/sh -lc</code> if unset), with a timeout and cached result. The UI shows the selected path and that it came from the user's shell. Optional <strong>Codex command</strong> is an absolute-path override, without arguments or <code>~</code> expansion. The executable's own folder is prepended to <code>PATH</code> for that command only, so a sibling <code>node</code> is found; the worker environment, <code>HOME</code> and <code>CODEX_HOME</code> are unchanged. It never reads Codex credentials or starts a model turn. Exact account ids take priority; otherwise exactly one case-insensitive email match updates a connection. Ambiguous/unmatched snapshots get their own row in the LLM connections list, with the reason. <strong>One Codex install reports one account; other ChatGPT accounts get no numbers this way.</strong> All plan-window text and bars show what's <strong>left</strong> (the API still reports <code>used_percent</code>). See <a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/analytics.md#4-plan-limits">Plan limits</a> for settings and protocol details.</li>
 </ul>
 </li>
 </ul>
@@ -374,6 +379,7 @@ c6w run
 <li><strong>Approvals from your phone:</strong> an approval notification links to a page showing the held call with <strong>Allow</strong> / <strong>Deny</strong>. The link is signed, works without signing in, and expires after an hour; answering takes a button press, so chat link previews can't answer for you. Links use the address under the channel list (taken from your browser the first time you save a channel).</li>
 <li><strong>The agent's <code>notify</code> tool:</strong> agents can send you a notice (a title, a few lines, a priority), for example from an automation that finds a problem.</li>
 <li><strong>Testing:</strong> <strong>Send a test</strong> sends a message on a channel and shows any error.</li>
+<li><strong>Browser support:</strong> browser notifications are optional. If their APIs are unavailable (as in some mobile browser tabs), the local notification toggle is disabled and sessions still open normally; push settings show that notifications are unavailable there.</li>
 </ul>
 <p><strong>Web push (no third party):</strong> on each device, <strong>Settings → Notifications → Turn on here</strong>, then add a channel of kind <code>push</code>. The head encrypts each message for each device and sends it to the browser's own push service, signed with its own key. Tapping a notification opens the session, or for an approval its Allow / Deny page.</p>
 <ul>
@@ -518,6 +524,7 @@ c6w run
 <li><strong>Limit.</strong> Notices start at most 20 turns per hour in an idle session. Beyond that they're held until your next message, and the session says so.</li>
 <li><strong>Worker restarts.</strong> Tasks die with the worker; the agent is told they were lost, and a command left running by the old worker process is stopped.</li>
 </ul>
+<p>Agents can also message other sessions in their realm with <code>message_session</code>. Each send adds one to the last session message's hop count. The default <code>max_message_hops</code> is <strong>4</strong>: chains of up to four messages are allowed; a fifth is refused. Your next direct message resets that session's count to <strong>0</strong>. Settings → Agents → Limits also caps sends per session per hour (default <strong>30</strong>); that allowance survives head restarts. See <a href="/docs/background/#6-session-messages">Session messages</a>.</p>
 <h3 id="subagents">Subagents</h3>
 <p>The agent can hand work to a subagent with the Task tool. A subagent is a session of its own, shown as a thread under the call that started it (docs/subagents.md).</p>
 <ul>
@@ -540,6 +547,16 @@ c6w run
 <p>Hover one of your messages: <strong>↶ Rewind</strong> takes the conversation back to before it, and <strong>✎ Edit</strong> changes it and sends it again. Either can also restore files: before each turn the worker snapshots the session's folder into a private repository in its state directory (your own git repository, if any, is never touched; folders without git work too; <code>node_modules/</code>, <code>target/</code> and the like are skipped, as are files your <code>.gitignore</code> ignores). Rewound messages stay in the transcript, folded under a marker.</p>
 <h3 id="attachments-and--mentions">Attachments and @-mentions</h3>
 <p>Paste, drop or pick (📎) images and text files into the message box; they go with the message (images as images, for models that see them; text files inline). Type <code>@</code> to mention a file or folder in the session's folder: a fuzzy finder completes the path, and the worker attaches the file (or a folder's listing) when the message arrives, so the model has it without a tool call. Files over 256 KB are mentioned but not inlined. Limits: 10 MB per upload, 20 MB per message. The Claude Code backend gets text only.</p>
+<p><strong>Drafts survive a reload</strong>, including attachments in session and Ask reply boxes
+and the ordinary new-session form. Text stays in this browser's localStorage;
+attachment names, types, data and order stay in IndexedDB, scoped to the same
+realm and draft. Sending or removing the attachments clears their saved copy.
+The browser keeps at most 20 MB of attachment draft payloads (including base64
+and metadata), evicting the oldest modified drafts' attachments first, not their
+text. A quiet note reports attachments that couldn't be kept or restored. Storage
+is local to this browser and origin, not a backup or a cross-device sync; clearing
+site data clears drafts too. Seeded start forms without a saved text draft remain
+temporary.</p>
 <h3 id="slash-commands">Slash commands</h3>
 <p>Type <code>/</code> in the message box for the command list.</p>
 <ul>
@@ -584,6 +601,12 @@ c6w run
 <p><strong>Inside a tile:</strong> at most two panes, a list and the item opened from it. Clicking anything inside a tile opens it in that tile's right pane, beside the list, replacing what was there. ‹ and › (⌘[ / ⌘]) step through the tile's own history.</p>
 </li>
 <li>
+<p><strong>The first click acts:</strong> clicking a control or link in an unfocused tile focuses that tile and performs the action in the same click; it doesn't take a separate click to focus it first.</p>
+</li>
+<li>
+<p><strong>Drag a tile's bar</strong> onto another tile's top or bottom half to stack it there, or its left or right edge to make a column. Blue highlights mark moves that can happen, including the gaps between tiles. With four columns already open, a tile sharing its column cannot make a fifth: the edge shows no highlight, and dropping there does nothing; drop above or below a tile to stack it. A tile alone in its column can still move that column. Dropping where a tile already sits does nothing and shows no highlight.</p>
+</li>
+<li>
 <p><strong>A new tile only when you ask:</strong> ⌘/Ctrl-click a link, ⧉ in a tile's bar (moves the open item into a tile of its own), or <strong>+ Tile</strong>. ⌘1–9 focus a tile, numbered in reading order (the columns left to right, each top to bottom); a session open in a tile shows that number on its rows in the dock. A session that is already open is shown where it is instead of opening twice.</p>
 </li>
 <li>
@@ -626,10 +649,16 @@ c6w run
 <p><strong>Light or dark:</strong> Settings → Appearance: follow the system, or always light or dark (kept in each browser).</p>
 </li>
 <li>
+<p><strong>Thinking:</strong> Settings → Appearance → Session transcripts → <strong>Show thinking</strong>, off by default. Off hides reasoning entirely; on shows it expanded under <strong>Thinking</strong>, in sessions and inline threads on desktop and phone. Kept in carbon6 across realms and devices, without changing stored events or model input (<a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/session-header.md#4-defaults">display preference and API</a>).</p>
+</li>
+<li>
 <p><strong>Phones:</strong> one tile at a time with a switcher, <strong>+</strong> and <strong>▸ N</strong> at the bottom; the current tab's <strong>×</strong> closes its tile, and a long press lifts a tab: drag it and a line shows where it will land, or let go where it is for <strong>Close</strong> and <strong>Minimize</strong>. <strong>▸ N</strong> opens a sheet of every tile (to show or close each, the minimized too), the sessions you viewed lately that no tile holds, <strong>All sessions</strong> and <strong>+ New tile</strong>; Inbox is in ☰. One pane fills the screen (‹ in the item's header goes back to the list), and the nav is in ☰. A phone on its side keeps this layout: the desktop one needs 512px of height as well as width. On a touch screen Return is a new line in a message box; ⌘/Ctrl+Enter sends everywhere.</p>
 </li>
 <li>
 <p><strong>The message box</strong> grows with what you type, up to 40% of the window, then scrolls. An image pasted, dropped or attached opens full size when you click it, before you send. The session's model and its subagents' model are chips under the box, each opening its pickers; a change waiting for Send shows beside them.</p>
+</li>
+<li>
+<p><strong>Tool calls</strong> show their summary straight away and start collapsed (plans start open). Open one to watch its live output; live and final output, including images, share the same fixed-height scrolling area. Finishing a call doesn't open or close it. Calls that make a session or write a document reserve their link's space from the start, including on a phone.</p>
 </li>
 <li>
 <p><strong>Recently viewed</strong> heads the Sessions page: the last 8 sessions you looked at, newest first, with each one's state and when, the same on every device (the head keeps each realm's last 20: <code>POST /api/v1/sessions/{id}/viewed</code>, <code>GET /api/v1/sessions/recent</code>). Hidden while you search.</p>
