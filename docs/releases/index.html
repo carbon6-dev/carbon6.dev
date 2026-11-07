@@ -14,7 +14,7 @@
 <tr><td><strong>CI</strong> (<code>.github/workflows/ci.yml</code>)</td><td>every push to <code>main</code>; or by hand, as a dry run</td><td>the tests, the packages, and for a release commit the tag and the publication (§4)</td></tr>
 <tr><td><strong>Test</strong> (<code>.github/workflows/test.yml</code>)</td><td>pull requests, and from CI</td><td><code>make check</code>, then <code>cargo test --locked</code> on Ubuntu 24.04 and macOS 15, and the suite again with every core busy (docs/testing.md)</td></tr>
 </tbody></table>
-<p><strong>Toolchain:</strong> the Rust and Trunk versions come from <code>docker/Dockerfile</code> (<code>RUST_VERSION</code>, <code>TRUNK_VERSION</code>), through <code>.github/actions/rust</code>. The Docker builds use the same versions, so local and CI builds match.</p>
+<p><strong>Toolchain:</strong> the Rust version is set in one place, <code>rust-toolchain.toml</code>: rustup uses it for local builds, CI installs it through <code>.github/actions/rust</code>, and the Makefile passes it to the Docker builds (<code>RUST_VERSION</code>). Trunk's version comes from <code>docker/Dockerfile</code> (<code>TRUNK_VERSION</code>). So local, CI and Docker builds match.</p>
 <h2 id="3-versions">3. Versions</h2>
 <ul>
 <li>
