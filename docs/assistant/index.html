@@ -152,9 +152,15 @@
 <li><code>POST /api/v1/assistant</code> (prompt and page context);</li>
 <li><code>GET</code>/<code>PUT /api/v1/settings/assistant</code>;</li>
 <li><code>GET /api/v1/catalog</code> and <code>POST /api/v1/catalog/call</code> (for the CLI: destructive operations need <code>confirmed</code>).</li>
+<li>List-setting operations expose optional top-level <code>realm</code> for both GET and PUT; PUT also requires <code>body</code> (the complete array). A catalog call with <code>{"op":"settings.templates.put","input":{"realm":"c6","body":[…]}}</code> dispatches to <code>PUT /api/v1/settings/templates?realm=c6</code>, with only the array in the HTTP body. Read with <code>{"op":"settings.templates.get","input":{"realm":"c6"}}</code> first and preserve unrelated entries; policies work the same way. The assistant's list-removal preview reads the same target as its replacement. The generated operation schemas, API reference and OpenAPI describe query and body separately.</li>
+<li>Existing authorization still applies: catalog calls are admin-only; realm-scoped direct settings calls cannot leave their realm.</li>
+<li>Catalog dispatch retains the authenticated <code>Caller</code>, not an anonymous internal administrator: realm/browser/console identity and API-token display name reach the operation's own handlers. A token cannot gain browser account-management powers through a catalog call; destructive calls still need confirmation. Agent-approved operations retain their existing authority but do not become human input just because they act on your behalf.</li>
+<li><code>sessions.send</code> records API input with <code>api_origin.token_name</code> (the token's display name, never its credential). A verified, signed-in browser send records <code>human_origin</code>; request-body fields cannot set or override either origin. A page header alone with sign-in off is not evidence of a human. Queue edits replace provenance with the editing caller's, rather than attributing an API/agent rewrite to the original human sender. The head assistant inbox and watcher wake queue preserve these fields just as workers do; a watcher no longer introduces an API caller's message as “The user wrote to you”.</li>
+<li>This adds no settings powers to ordinary session agents: their <code>carbon6</code> tool still refuses settings replacements (also when <code>realm</code> is explicit). Ask acts with your existing permissions; a nonroot Ask conversation cannot select another realm. Root Ask already has administration authority.</li>
 </ul>
 </li>
-<li><strong>CLI:</strong> <code>c6 ops [words]</code> and <code>c6 op &lt;name&gt; key=value…</code>.</li>
+<li><strong>CLI:</strong> <code>c6 ops [words]</code> and <code>c6 op &lt;name&gt; key=value…</code>.
+Use <code>c6 op settings.templates.get realm=c6</code> and <code>c6 op settings.templates.put realm=c6 body=@templates.json</code>. Omitted realm keeps the endpoint's existing scope (templates default to home; policies to root), not the invoking session's realm. <code>realm</code> belongs beside <code>body</code>, not inside it.</li>
 <li><strong>UI:</strong>
 <ul>
 <li>✦ Ask in the header (⌘J), with the focused column as context;</li>
@@ -166,12 +172,13 @@
 <li><strong>Since docs/ask.md (2026-11-02):</strong> Ask is also carbon6's everyday chat. It waits for work it delegates to a machine (<code>c6_delegate</code>, through the templates agents may start), its conversations are listed under <strong>Chat</strong>, each takes its own model, Claude Code included (run on the head's machine with only Ask's tools), and mail, chat and calendar come in by a per-conversation switch or an @-mention.</li>
 </ul>
 <h3 id="realms-os-step-8">Realms (OS step 8)</h3>
+<p>Realms organise; they don't isolate. The following API admission and approval checks remain enforced, but neither shared-worker files nor delegation to agents with wider access is contained by realm membership (docs/realms-ux.md §8).</p>
 <ul>
 <li>
 <p><strong>A conversation works in one realm:</strong> the realm whose page you open it from. From the console it is root, which administers carbon6 and reaches every realm.</p>
 </li>
 <li>
-<p><strong>Its operations are admitted like that realm's API token.</strong> It reaches the realm's sessions, collections, decisions, triggers, views, series and knowledge. Administration (workers, connections, realms, grants, settings) answers 403, and the assistant is told to send you to the console for it.</p>
+<p><strong>Its operations are admitted like that realm's API token.</strong> It reaches the realm's sessions, collections, decisions, triggers, views, series and knowledge. Console-only administration (workers, connections, realms, grants and global settings) answers 403, and the assistant is told to send you to the console for it. Settings admitted within a realm stay in that conversation's realm, even with an explicit <code>realm</code> input. This is Ask's existing user-facing authority, not the ordinary session agent's settings permissions.</p>
 </li>
 <li>
 <p><strong>Its instructions</strong> are the <code>assistant.base</code> prompt as the realm has it (a realm can override it), with <code>{{realm}}</code> naming the realm.</p>
@@ -180,7 +187,7 @@
 <p><strong>Commons</strong> is not a place to work in.</p>
 </li>
 <li>
-<p><strong>From root it starts sessions in a realm, with your approval each time.</strong> Sessions never run in root (or commons), so for work on a machine the assistant in root calls <code>sessions.create</code> naming the realm. Before anything starts you get an approval (also a decision and a notification) that names the realm, the worker and, when given, the folder, model, title and labels, with the first message in full. The first message is the one way root's knowledge reaches the realm, so the call carries nothing else: no attachments, work item, to-do or references, and no secret you gave the assistant. The first message is at most 4,000 characters, so the approval always shows all of it.</p>
+<p><strong>From root it starts sessions in a realm, with your approval each time.</strong> Sessions never run in root (or commons), so for work on a machine the assistant in root calls <code>sessions.create</code> naming the realm. Before anything starts you get an approval (also a decision and a notification) that names the realm, the worker and, when given, the folder, model, title and labels, with the first message in full. For this start call, the first message is the approved input from root: no attachments, work item, to-do or references, and no secret you gave the assistant. The first message is at most 4,000 characters, so the approval always shows all of it.</p>
 <ul>
 <li><strong>Allow:</strong> the session starts in that realm as that realm's API token would start it, under the realm's policies, routes, connections and workers and none of root's. It is labelled <code>started-by:console</code>. The assistant gets the session back, with its id, and can follow it, since root reads every realm.</li>
 <li><strong>Deny</strong> (or no answer): nothing starts, and the assistant is told not to try another way.</li>

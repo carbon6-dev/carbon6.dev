@@ -15,6 +15,37 @@
 <tr><td><strong>Test</strong> (<code>.github/workflows/test.yml</code>)</td><td>pull requests, and from CI</td><td><code>make check</code>, then <code>cargo test --locked</code> on Ubuntu 24.04 and macOS 15, and the suite again with every core busy (docs/testing.md)</td></tr>
 </tbody></table>
 <p><strong>Toolchain:</strong> the Rust version is set in one place, <code>rust-toolchain.toml</code>: rustup uses it for local builds, CI installs it through <code>.github/actions/rust</code>, and the Makefile passes it to the Docker builds (<code>RUST_VERSION</code>). Trunk's version comes from <code>docker/Dockerfile</code> (<code>TRUNK_VERSION</code>). So local, CI and Docker builds match.</p>
+<p><strong>UI transfer size:</strong> Trunk's <code>post_build</code> hook runs <code>scripts/precompress-ui.sh</code>
+against <code>TRUNK_STAGING_DIR</code> before publishing <code>dist</code>. It writes Brotli quality-11
+<code>.br</code> sidecars for WASM, JS, CSS and HTML, leaving originals intact. Thus direct
+<code>trunk build</code> / <code>trunk serve</code>, <code>make ui</code>, <code>make build</code>, native deb/brew packaging
+(both depend on <code>build</code>), and both Docker build stages share the same step.
+CI's Trunk setup and both Docker toolchains install the Brotli CLI; local builds
+need it too. A missing compressor fails the build rather than shipping an
+uncompressed release. <code>sh scripts/precompress-ui.sh [dist-directory]</code> can also be
+used by size checks; an absent dist directory is a no-op. Test with
+<code>sh scripts/test-precompress-ui.sh</code>.</p>
+<p>The head embeds originals and sidecars. It negotiates <code>Accept-Encoding</code> qvalues,
+explicit exclusions, wildcards and identity, serves Brotli only when acceptable,
+and sends <code>Vary: Accept-Encoding</code> even for the original representation. MIME and
+fingerprinted immutable caching are based on the original path. API JSON uses
+tower-http's streaming Brotli/gzip compression; event streams, WebSockets and UI
+assets are not dynamically compressed. Native executable settings are unchanged.</p>
+<p><strong>Repeat visits and terminal assets:</strong> embedded assets include an ETag from
+rust-embed's SHA-256 metadata (no runtime body hashing). Non-fingerprinted assets
+remain <code>no-cache</code>, so the browser revalidates them; matching <code>If-None-Match</code>
+returns an empty 304 with ETag, cache policy and <code>Vary</code> intact. Weak tags, lists,
+wildcards, HEAD and distinct Brotli/identity representation tags are supported.
+Fingerprinted assets retain their year-long immutable cache policy.</p>
+<p>The HTML's helper scripts are deferred. xterm JS, fit addon and CSS are fetched
+only when a terminal view opens, once per successful asset per page. Concurrent
+opens share loading; failed assets can be retried by closing/reopening. Until
+loading succeeds, the Rust view does not create xterm or attach the PTY socket.
+Closing a view aborts its pending attachment, and disposes the active observer
+and terminal before dropping callbacks. Loading failures display a UI error
+instead of trapping. Test the loader with
+<code>node --test scripts/test-terminal-assets.cjs</code>, and HTTP behavior with
+<code>cargo test -p c6-head assets::tests</code>.</p>
 <h2 id="3-versions">3. Versions</h2>
 <ul>
 <li>

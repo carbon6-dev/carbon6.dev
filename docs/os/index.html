@@ -5,18 +5,18 @@
 <ul>
 <li><strong>The rule:</strong> if an app needs code in carbon6, a primitive is missing. Add the primitive, never the app.</li>
 <li><strong>Why:</strong> follow-through (kits, trackers, playbooks) was built as features for one use case, and was removed on 2026-10-13 because it didn't land. The general versions of those ideas are records, triggers, decisions and app packages (8).</li>
-<li><strong>Isolation:</strong> many apps run side by side in <strong>realms</strong>. Information moves between realms only through flows you declare, instead of everything sharing one pool.</li>
+<li><strong>Organisation:</strong> many apps run side by side in <strong>realms</strong>, with their own lists, data and settings. API scopes and grants organise access; realms are not a security boundary (3.9).</li>
 <li><strong>Prompts are configuration.</strong> Every instruction carbon6 gives an agent is an editable default, including the ones that are still in code today: the knowledge guidance in briefs, and the prompt for a session started from an action item.</li>
 </ul>
 <p><strong>Not goals:</strong></p>
 <ul>
-<li><strong>More than one user.</strong> carbon6 stays single-user. Realms isolate apps from each other, not people.</li>
-<li><strong>Sandboxing by default.</strong> Agents' shell access stays as it is today, except for policies you configure. Realms isolate the data carbon6 manages; how far that goes on a shared machine is spelled out in 3.9.</li>
+<li><strong>More than one user.</strong> carbon6 stays single-user. Realms organise apps and projects, not separate users.</li>
+<li><strong>Sandboxing by default.</strong> Agents' shell access stays as it is today, except for policies you configure. Realm-scoped APIs do not contain an agent's file access or delegated work (3.9).</li>
 <li><strong>A general-purpose OS.</strong> The primitives are the ones agent apps need, and no more.</li>
 </ul>
 <h2 id="2-the-model">2. The model</h2>
 <table><thead><tr><th>OS concept</th><th>carbon6</th><th>Status</th></tr></thead><tbody>
-<tr><td>Isolation</td><td><strong>Realms</strong> (3)</td><td>New</td></tr>
+<tr><td>Organisation</td><td><strong>Realms</strong> (3)</td><td>New</td></tr>
 <tr><td>Processes</td><td>Sessions, subagents, side chats</td><td>Exists; gains a realm</td></tr>
 <tr><td>Machines</td><td>Workers, available to some realms or dedicated to one (3.2)</td><td>Exists; gains availability</td></tr>
 <tr><td>Programs</td><td>Skills, agents, commands, templates, workflows, hooks, MCP servers</td><td>Exists; realm-scoped (4.6)</td></tr>
@@ -25,22 +25,22 @@
 <tr><td>Structured storage</td><td><strong>Collections</strong> of typed records (4.1)</td><td>New</td></tr>
 <tr><td>Asking the user</td><td><strong>Decisions</strong> (4.2)</td><td>New; replaces approvals, action items and questions</td></tr>
 <tr><td>Events and scheduling</td><td><strong>Triggers</strong> (4.3)</td><td>Generalizes automations</td></tr>
-<tr><td>Numbers over time</td><td><strong>Series</strong> (4.4)</td><td>New; usage and budgets move onto it</td></tr>
+<tr><td>Numbers over time</td><td><strong>Series</strong> (4.4)</td><td>New; Usage moves onto it, including budgets</td></tr>
 <tr><td>Screens</td><td><strong>Views</strong> (4.5)</td><td>New</td></tr>
 <tr><td>Packages</td><td><strong>Apps</strong> (5)</td><td>New</td></tr>
 <tr><td>Permissions</td><td>Realms, grants, policies, secrets, budgets, realm-scoped API tokens</td><td>Partly exists</td></tr>
 </tbody></table>
 <h2 id="3-realms">3. Realms</h2>
 <h3 id="31-what-a-realm-is">3.1 What a realm is</h3>
-<p>A realm is a named boundary that <strong>owns</strong> objects. Every object belongs to exactly one realm. Nothing outside a realm can see what it owns, except through a grant (3.7).</p>
+<p>A realm is a named place that <strong>owns</strong> objects. Every object belongs to exactly one realm. Realm-scoped API requests address that realm's data, with specific cross-realm access through grants (3.7) and commons. This is organisation, not isolation of agents or machines (3.9).</p>
 <pre><code>realm(id, name, description, created_at, created_by /* you | app install */, app /* the app it was made for, if any */)
 </code></pre>
 <p>Realms and labels do different jobs:</p>
 <table><thead><tr><th></th><th>Realm</th><th>Label</th></tr></thead><tbody>
 <tr><td>How many per object</td><td>Exactly one</td><td>Any number</td></tr>
-<tr><td>Meaning</td><td>Owns it; a boundary</td><td>Describes it; used for matching</td></tr>
-<tr><td>Default</td><td>Invisible outside the realm</td><td>Visible wherever its scope reaches</td></tr>
-<tr><td>Used for</td><td>Isolation and information flow</td><td>Choosing configuration inside a realm</td></tr>
+<tr><td>Meaning</td><td>Owns it; groups work and settings</td><td>Describes it; used for matching</td></tr>
+<tr><td>Default</td><td>Scoped to its realm in the API</td><td>Visible wherever its scope reaches</td></tr>
+<tr><td>Used for</td><td>Organisation and API scoping</td><td>Choosing configuration inside a realm</td></tr>
 </tbody></table>
 <p>Labels keep working as they do today, inside a realm.</p>
 <h3 id="32-what-belongs-to-a-realm-and-what-is-shared">3.2 What belongs to a realm, and what is shared</h3>
@@ -57,11 +57,11 @@
 </ul>
 <p><strong>Shared infrastructure,</strong> like hardware in an OS:</p>
 <ul>
-<li><strong>Workers:</strong> each worker is either available to a list of realms, or dedicated to one. A session can only start on a worker its realm may use. Template runs, kit jobs (the knowledge store's reading included) and session imports go only to workers available to their realm; a template started from a session runs on that session's worker unless you grant its realm more (<code>workers</code>, <code>start</code>).</li>
+<li><strong>Workers:</strong> each worker is available to a list of realms; an empty list (<code>realms: []</code>) means every realm. This limits worker API access and template targets, not OS permissions or all delegated access. A session can only start on a worker its realm may use. Template runs, kit jobs (the knowledge store's reading included) and session imports go only to workers available to their realm; a template started from a session runs on that session's worker unless its same-realm "Agents may start it" approval or a <code>workers</code>, <code>start</code> grant permits other targets.</li>
 <li><strong>Model connections and routes:</strong> each is available to a list of realms (all, by default).</li>
 <li><strong>What a worker is given:</strong> a worker asks for credentials on behalf of one of its sessions. The head gives a model connection's key only when the session is live and on that worker, its conversation uses the connection (itself, its subagents, or a model switch on its way), and the connection is available to its realm; a secret only as <code>name@session</code>, from the session's realm. Each grant and refusal is logged with the worker, session and connection. (A worker older than this doesn't say which session asks: it gets a connection one of its live sessions may use, with a warning to update it.)</li>
 <li><strong>The memex service:</strong> one service, with its data partitioned by realm.</li>
-<li><strong>The head:</strong> it enforces everything (3.8).</li>
+<li><strong>The head:</strong> it enforces API scopes and credential-delivery checks (3.8), not OS permissions around sessions.</li>
 <li><strong>An overall budget cap,</strong> above the realms' own budgets.</li>
 </ul>
 <h3 id="33-root-home-and-commons">3.3 Root, home and commons</h3>
@@ -82,22 +82,22 @@
 <ul>
 <li><strong>One realm per session,</strong> chosen when it starts. The default is remembered per folder, the way labels are, so a folder used for the factory starts factory sessions.</li>
 <li><strong>No moving.</strong> A session can't move to another realm. Its data can be copied through a grant, and the copy carries where it came from.</li>
-<li><strong>What a session sees:</strong> its brief, search results, facts, records, decisions, secrets and tools all come from its realm, plus whatever grants let in.</li>
+<li><strong>What its realm-scoped tools return:</strong> its brief, search results, facts, records and decisions use its realm, plus grants and commons. Configuration and secret lookup can inherit root's defaults. This does not describe everything the session can read through files or delegation (3.9).</li>
 </ul>
 <h3 id="36-the-assistant">3.6 The assistant</h3>
 <ul>
 <li><strong>One per realm.</strong> It can do what the UI can do inside that realm.</li>
 <li><strong>Administration</strong> (workers, connections, realms, grants, app installs) runs in root, and only when you open it there.</li>
-<li>An assistant never acts in another realm. It may suggest a grant, which you approve (4.2).</li>
+<li>A realm's assistant addresses that realm through the API. It may suggest a grant, which you approve (4.2). The console's assistant can put work into another realm with your approval (docs/assistant.md).</li>
 </ul>
 <p><strong>As built (step 8):</strong></p>
 <ul>
 <li><strong>The realm:</strong> the assistant works in the realm whose page you open it from (the console's is root).</li>
-<li><strong>What it may do:</strong> its catalog calls go through the same admission as that realm's API token, so it reaches only that realm's data, and administration stays in root.</li>
+<li><strong>What it may do:</strong> its catalog calls go through the same admission as that realm's API token, so ordinary calls address that realm's data, and administration stays in root. Delegation to a worker is not filesystem isolation (3.9).</li>
 <li><strong>Its instructions</strong> are the <code>assistant.base</code> prompt, overridable per realm, which now names the realm. Its memex calls go to that realm's knowledge, and its compaction prompt is the realm's.</li>
 </ul>
 <h3 id="37-grants-information-flow-between-realms">3.7 Grants: information flow between realms</h3>
-<p>A grant is the only way data crosses a realm boundary:</p>
+<p>A grant authorises specific cross-realm API access. It does not control file access or data passed through delegated work (3.9):</p>
 <pre><code>grant(id, from_realm, to_realm,
       scope /* a collection (with an optional filter), a memex kind or saved query, a series, or named operations */,
       mode /* read | append | snapshot | call */,
@@ -109,26 +109,28 @@
 <tr><td>snapshot</td><td>A one-time copy.</td></tr>
 <tr><td>call</td><td>The other realm can run named operations in this realm, for example sending mail from home's accounts. Each call is still subject to this realm's policies, so a send can still ask you first.</td></tr>
 </tbody></table>
-<p><strong>Guarantees:</strong></p>
+<p><strong>For access through grants:</strong></p>
 <ul>
-<li><strong>Provenance travels.</strong> Anything that crosses carries its origin realm and the grant it came through, and keeps them through later copies.</li>
-<li><strong>Every access is logged.</strong> You can see what flowed where.</li>
-<li><strong>Revoking stops future flow.</strong> It can't recall what was already copied, and the UI says so.</li>
-<li><strong>Grants mean what they say.</strong> A session that can read A and write B can copy A's data into B. So a grant is defined as "A's data may flow into B", not "B may read A". This is honest information-flow control, not a stronger promise than the system can keep.</li>
+<li><strong>Provenance travels.</strong> Grant-mediated copies carry their origin realm and grant through later copies.</li>
+<li><strong>Grant use is logged.</strong> You can see these accesses, not all file reads or delegated data transfers.</li>
+<li><strong>Revoking stops future use of that grant.</strong> It can't recall what was already copied or close other access paths.</li>
+<li><strong>Grants permit copying.</strong> A session that can read A and write B can copy A's data into B. A grant means "A's data may flow into B", not just "B may read A"; it is not a guarantee that all other flows are prevented.</li>
 <li><strong>Only you create grants.</strong> An agent can request one, as a decision.</li>
 </ul>
 <p><strong>Publishing to commons:</strong> a realm with an <code>append</code> grant to commons proposes items, such as facts. They wait in commons' review queue until you accept them. Every realm can read commons by default; you can turn that off per realm.</p>
 <h3 id="38-enforcement">3.8 Enforcement</h3>
 <ul>
-<li><strong>The head is the only place access is decided.</strong> Everything sessions do with carbon6 data passes through it: workers call the head over the fabric on behalf of a session, and the head looks up the session's realm.</li>
+<li><strong>The head decides API access.</strong> Workers call the head over the fabric on behalf of a session, and the head looks up the session's realm. Shell commands and delegated agents can reach data outside those API paths (3.9).</li>
 <li><strong>The memex</strong> gets the realm and the grants' scopes with every call. They replace today's label-based scopes (memex design 2.3).</li>
-<li><strong>API tokens are scoped to realms.</strong> An integration's token reaches only its realm's data (plus that realm's grants), so the code an app writes can't read your mail.</li>
-<li><strong>Secrets</strong> are delivered only to sessions in their realm. A secret scoped to a <code>worker:</code> label still goes only to that worker.</li>
+<li><strong>API tokens can be scoped to realms.</strong> Such a token's API requests are checked against its realm and applicable grants; administrative operations are refused. This does not sandbox code using the token or restrict its other credentials and file access.</li>
+<li><strong>Secrets</strong> are looked up in the session's realm, falling back to root's value when that name isn't set there. Session credential requests also enforce any <code>worker:</code> labels. These are delivery checks, not protection against reading credentials already available on a shared worker.</li>
 </ul>
 <h3 id="39-what-realms-do-not-isolate">3.9 What realms do not isolate</h3>
+<p><strong>Realms organise; they don't isolate.</strong> They provide separate lists, data and settings, plus enforced API scopes and secret lookup (3.8). They are not a security boundary around an agent.</p>
 <ul>
-<li><strong>Files on a shared worker.</strong> Sessions are not sandboxed (1), so two realms' sessions on the same worker can read each other's files. When that matters, dedicate a worker to the realm (3.2): for example, give a factory its own VM.</li>
-<li><strong>What a model provider sees.</strong> A shared model connection sends every realm's prompts to the same provider. Making a connection available only to some realms (3.2) controls which providers a realm's data can reach.</li>
+<li><strong>Files on a shared worker.</strong> Commands run as the worker's OS user, not a realm-specific user. Sessions on a worker serving several realms can reach each other's files that user can read: journals, transcripts, worktrees, credentials and config. An empty worker <code>realms: []</code> list serves every realm.</li>
+<li><strong>Delegated access.</strong> A worker limited to one realm is not isolation either. An agent can message a same-realm session or delegate through subagents, task cards, templates or the head-run assistant. A receiving agent with wider worker or tool access can use it on the caller's behalf. Messaging, template approvals and grants, and assistant approvals still apply; they do not contain all such access. Do not treat a dedicated worker or realm as a sandbox for untrusted agents or packages.</li>
+<li><strong>What a model provider sees.</strong> A shared model connection sends prompts from each realm using it to the same provider. Connection availability (3.2) limits direct selection, not every route by which delegated work can send data.</li>
 </ul>
 <h3 id="310-moving-in">3.10 Moving in</h3>
 <ul>
@@ -152,8 +154,8 @@
 <ul>
 <li><strong>Where they run:</strong> a session runs in the realm it is created in: the API's <code>realm</code>, else the caller's, else home. Never root (only the assistant's conversations are there), and only in a realm that exists.</li>
 <li><strong>Inheritance:</strong> side chats and subagents take their parent's realm. Template runs, automations and workflow runs start their sessions in their own realm.</li>
-<li><strong>What a session gets:</strong> only its realm's memory notes and secrets.</li>
-<li><strong>Secret requests:</strong> a worker asks for a secret on behalf of a session (<code>secret:NAME@&lt;session&gt;</code>), and the head checks the secret is in that session's realm. A bare name, from an older worker, gets only home's secrets.</li>
+<li><strong>What a session gets:</strong> its realm's memory notes and secrets resolved from its realm, falling back to root's for names it hasn't set.</li>
+<li><strong>Secret requests:</strong> a worker asks for a secret on behalf of a session (<code>secret:NAME@&lt;session&gt;</code>), and the head uses that session's realm for lookup, including root fallback. Bare names from older workers are refused with a request to update. This checks delivery, not later file access or delegation.</li>
 </ul>
 </li>
 <li><strong>The memex:</strong>
@@ -176,7 +178,7 @@
 <ul>
 <li><strong>The memex keeps each realm's knowledge in a database of its own:</strong> home's memex (the one <code>c6m</code> runs) opens another realm's memex under <code>realms/&lt;id&gt;/</code> when first asked.
 <ul>
-<li><strong>Isolation by construction:</strong> each has its own items, things, links, facts, trails and passages, so search, briefs, facts, notes and things are per realm, and nothing in the queries could leak.</li>
+<li><strong>Per-realm storage:</strong> each has its own items, things, links, facts, trails and passages, so ordinary search, briefs, facts, notes and things query the selected realm. Separate databases do not isolate the files from an agent with OS access.</li>
 <li><strong>Upgrades:</strong> each database upgrades itself through the same machinery.</li>
 </ul>
 </li>
@@ -324,8 +326,9 @@ record_history(record_id, version, fields JSON, changed_by, changed_at)
 <li><strong><code>todo_add</code>, the memex's disputes, and you:</strong> nothing waits on these.</li>
 </ul>
 </li>
-<li><strong>Answering:</strong> answering one answers what waits on it (the approval, the workflow, the question, or a message to the session). If that fails, the decision stays open. Answering the waiting thing elsewhere (in the session, through its link, or by it timing out) settles the decision. Answers are checked: an option must be one offered, required fields must be filled, choices must be valid, and there are no extra fields. Nothing that waits can be dismissed.</li>
+<li><strong>Answering:</strong> answering one answers what waits on it (the approval, the workflow, the question, or a message to the session). If that fails, the decision stays open. One exception: a non-blocking agent question is still answered and recorded if its session has since been archived; undeliverable notification of that answer is logged as a warning, without unarchiving or queueing input. Other delivery failures still leave the question open. A task card's <strong>Do it here</strong> continues to refuse an archived session, showing the error while keeping <strong>Not now</strong> available. Answering the waiting thing elsewhere (in the session, through its link, or by it timing out) settles the decision. Answers are checked: an option must be one offered, required fields must be filled, choices must be valid, and there are no extra fields. Nothing that waits can be dismissed.</li>
 <li><strong>Deadlines:</strong> every half minute (<code>sweep</code>), an open decision past its deadline takes its default answer, or "no", and becomes expired.</li>
+<li><strong>Answer attribution:</strong> browser answers record <code>answered_via: "carbon6"</code>, in every realm and in the console. API-token answers use the token's display name (root and realm-limited tokens alike), trimmed and only if it is nonempty, at most 80 characters, and contains no control characters; otherwise they record <code>"an API token"</code>. This label is displayed as <code>(via …)</code>, never contains the token secret, and is independent of the realm being viewed.</li>
 <li><strong>Notifications:</strong> a new decision with options sends a <code>decision</code> notification (on by default), with a signed link (<code>/approve/{token}</code>, prefix <code>dc:</code>) whose page offers the options as buttons.</li>
 <li><strong>Reconcile at start:</strong> the head opens decisions for whatever already waits without one (held tool calls, approve steps), so an upgrade loses nothing.</li>
 <li><strong>API:</strong> <code>/api/v1/decisions…</code> (list, count, get, add, <code>answer</code>, edit to snooze, dismiss or reopen, <code>session</code>). Every route has a catalog operation. The <strong>Decisions</strong> page replaces <strong>To do</strong>, and <code>/todos</code> still opens it.</li>
@@ -401,7 +404,7 @@ threshold(series, condition /* e.g. sum over 7 days &lt; 10, no point for 2 hour
 <ul>
 <li><strong>Queries:</strong> sum, average, minimum, maximum and last value, over windows, grouped by dimension.</li>
 <li><strong>Sources:</strong> trigger mappings (4.3), agents (<code>series_record</code>), the API, and carbon6 itself.</li>
-<li><strong>Built in:</strong> carbon6 records model spend, tokens and session counts per realm and label as series. <strong>Usage and budgets move onto series:</strong> a budget is a threshold whose action is to stop spending.</li>
+<li><strong>Built in:</strong> carbon6 records model spend, tokens and session counts per realm and label as series. <strong>Usage moves onto series:</strong> a budget is a threshold whose action is to stop spending.</li>
 </ul>
 <p><strong>As built (step 6):</strong></p>
 <ul>
@@ -545,7 +548,7 @@ A routing rule's <code>tools</code> list can omit tools from the model. For thes
 </ul>
 <h2 id="5-apps">5. Apps</h2>
 <blockquote>
-<p><strong>Proposed change:</strong> <a href="/docs/apps/">apps.md</a> makes realms trust domains you draw, and apps instances installed in them. Reading is open within a realm, writing belongs to the data's owner, and app code changes only by upgrade.</p>
+<p><strong>Proposed change:</strong> <a href="/docs/apps/">apps.md</a> makes realms organisational groups you choose, and apps instances installed in them. Reading through the API is open within a realm, writing belongs to the data's owner, and app code changes only by upgrade. Realms do not contain untrusted code (3.9).</p>
 </blockquote>
 <h3 id="51-the-package">5.1 The package</h3>
 <p>An app is a package of configuration, with <strong>no code</strong>:</p>
@@ -624,7 +627,7 @@ contents:
 <h3 id="61-service-factory">6.1 Service factory</h3>
 <p>A realm that finds gaps in app ecosystems, builds small services on a shared base, launches them and runs them, with you approving at five gates.</p>
 <ul>
-<li><strong>Realm:</strong> <code>factory</code>, with a dedicated worker for building and deploying. Model connections as you choose. No grant to home: it never sees your mail or photos. It reads commons for infrastructure facts.</li>
+<li><strong>Realm:</strong> <code>factory</code>, with a worker assigned to it for building and deploying. Model connections as you choose. No grant to home: its realm-scoped tools do not read home's mail or photos. This does not prevent file access or delegation (3.9). It reads commons for infrastructure facts.</li>
 <li><strong>Collections:</strong>
 <ul>
 <li><code>candidates</code>: the gap, the ecosystem, the evidence (links), a score per rubric criterion, the stage (<code>found → approved → validating → build → rejected</code>), and the decision ids for its gates.</li>
@@ -728,8 +731,8 @@ contents:
 </ul>
 <h2 id="7-guarantees">7. Guarantees</h2>
 <ol>
-<li><strong>Default deny between realms.</strong> Only grants cross, with provenance and a log.</li>
-<li><strong>One enforcement point.</strong> The head decides every access to carbon6 data.</li>
+<li><strong>Realm-scoped API access.</strong> Cross-realm API access uses explicit paths such as grants and commons; grant use carries provenance and a log. This does not constrain file access or delegation (3.9).</li>
+<li><strong>One API enforcement point.</strong> The head decides API access to carbon6 data, not every way an agent can reach it.</li>
 <li><strong>Strict data.</strong> Records and attributes match their schemas, and changes are versioned with who made them.</li>
 <li><strong>Nothing irreversible without you.</strong> Deletes, drops, uninstalls, spending (through policies), grant changes and app installs are decisions.</li>
 <li><strong>Bounded automation.</strong> Triggers have depth limits, rate limits and budgets.</li>
@@ -743,7 +746,7 @@ contents:
 <tr><td>Memex scopes by label</td><td>Realm + grants, with label scopes inside a realm</td></tr>
 <tr><td>Tool-call approvals, action items, workflow approve steps, assistant questions</td><td>Kinds of decision</td></tr>
 <tr><td>Automations (schedules, webhooks, memex events)</td><td>Triggers, with more events and actions</td></tr>
-<tr><td>Usage and budgets</td><td>Series and thresholds</td></tr>
+<tr><td>Usage</td><td>Series and thresholds</td></tr>
 <tr><td>Settings shared by everything</td><td>Root defaults, inherited and overridden per realm</td></tr>
 <tr><td>API tokens that reach everything (except sign-in)</td><td>Tokens scoped to realms; the root token reaches everything</td></tr>
 <tr><td>Prompts in code (briefing guidance, action-item prompt, compaction)</td><td>Root skills you can edit</td></tr>
@@ -786,14 +789,14 @@ contents:
 </ol>
 <h2 id="10-decisions">10. Decisions</h2>
 <table><thead><tr><th>Question</th><th>Decision</th></tr></thead><tbody>
-<tr><td>Isolation unit</td><td>Realms: one per object, default deny, flows only through grants</td></tr>
+<tr><td>Organisation unit</td><td>Realms: one per object, with API scopes and grants; not a security boundary</td></tr>
 <tr><td>Name</td><td>Realm</td></tr>
 <tr><td>Nesting</td><td>Flat under root, for now</td></tr>
 <tr><td>Assistant</td><td>One per realm; administration in root</td></tr>
 <tr><td>Workers</td><td>Available to some realms, or dedicated to one</td></tr>
 <tr><td>Apps</td><td>Configuration only; a missing primitive is added, never the app</td></tr>
 <tr><td>Users</td><td>One</td></tr>
-<tr><td>Sandboxing</td><td>Unchanged: not by default; dedicated workers when files must be isolated</td></tr>
+<tr><td>Sandboxing</td><td>Unchanged: not by default; neither realm membership nor a dedicated worker contains delegated access</td></tr>
 <tr><td>Architecture</td><td>A microkernel: a small kernel of orthogonal primitives; system services built on its public operations (12)</td></tr>
 <tr><td>Duplicated features</td><td>Rebuilt on their primitive in the step that builds it (12, 9)</td></tr>
 <tr><td>Existing data</td><td>Upgraded automatically in each step, after a backup, all or nothing, nothing dropped (13)</td></tr>
@@ -978,7 +981,7 @@ contents:
 <tr><td>4a</td><td>A realm is deleted only when it owns nothing</td><td>Removing a realm with its data belongs to an app's uninstall (step 9), with an export first</td></tr>
 <tr><td>4a</td><td>Per-realm settings use a request-scoped realm read by the settings store</td><td>Every settings endpoint and form works per realm without being rewritten</td></tr>
 <tr><td>4a</td><td>Each realm's pages are its own app, enforced by the head; administration is the console (docs/realms-ux.md)</td><td>A filter in the browser leaked across realms wherever a page forgot it</td></tr>
-<tr><td>4b</td><td>Another realm's memex knowledge is a separate database, not realm columns on shared tables</td><td>Isolation by construction: no query can leak, things are naturally per realm, a realm's knowledge is deleted with its file, and grants (4c) become reads across databases</td></tr>
+<tr><td>4b</td><td>Another realm's memex knowledge is a separate database, not realm columns on shared tables</td><td>Queries select a realm's database; things are naturally per realm, a realm's knowledge is deleted with its file, and grants (4c) become reads across databases. This is not OS-level isolation</td></tr>
 <tr><td>4b</td><td>Deleting a realm drops its memex knowledge too</td><td>A realm is deleted only when it owns no sessions, records or decisions; what the memex derived from them goes with it</td></tr>
 <tr><td>4c</td><td>A grant's <code>where</code> is kept as a second filter, not merged into the query's</td><td>Merging lets a query's own condition on the same field replace the grant's</td></tr>
 <tr><td>4c</td><td>Changing or deleting another realm's records has no grant mode</td><td>The design's modes are read, append, snapshot and call; a realm that should change records owns them</td></tr>
@@ -988,7 +991,7 @@ contents:
 <tr><td>4c</td><td>Searching across granted realms merges hits by score, each tagged with its realm</td><td>One search answers across what the realm may read, and you can see where each hit came from</td></tr>
 <tr><td>4d</td><td>Commons is a realm like any other, made on upgrade</td><td>Collections, knowledge, briefs and grants work there unchanged; only its rules differ</td></tr>
 <tr><td>4d</td><td>Reading commons needs no grant row; a per-realm switch turns it off</td><td>"Every realm reads commons by default; you can turn that off per realm" (3.7), without a grant per realm to manage</td></tr>
-<tr><td>4d</td><td>A proposal is a decision holding the item; nothing is written to commons until you publish it</td><td>Nothing unreviewed is ever readable by other realms, and rejecting leaves nothing to clean up</td></tr>
+<tr><td>4d</td><td>A proposal is a decision holding the item; nothing is written to commons until you publish it</td><td>Commons API reads return published items, not pending proposals; rejecting leaves nothing to clean up</td></tr>
 <tr><td>4d</td><td>Knowledge gets an append mode only for commons</td><td>Publishing facts needs it; a realm's knowledge is otherwise its own</td></tr>
 <tr><td>4d</td><td>A published fact enters commons as reviewed</td><td>You reviewed it as you published it</td></tr>
 <tr><td>4d</td><td>Commons' proposals are decisions in commons</td><td>The review queue belongs to commons, and you see all realms' decisions anyway</td></tr>
