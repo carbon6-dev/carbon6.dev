@@ -95,6 +95,7 @@
 <h3 id="lifecycle">Lifecycle</h3>
 <ul>
 <li><strong>Start.</strong> A Claude Code session's actor starts its process with the first input that needs it. It passes <code>--input-format stream-json --replay-user-messages</code>, plus today's flags (<code>--resume</code> or <code>--session-id</code>, model, effort, settings and <code>--mcp-config</code>). A new conversation's preamble goes in front of its first message, as now.</li>
+<li><strong>Transport and exit.</strong> In-turn held FIFO writes stay cancellable under backpressure, including an initial report delivered between turns. Stop retires a runtime with a partially written input; the next turn never appends to that partial JSON line. The output follower observes wrapper exit even without a <code>code</code> file, drains final output and reaps its child. A running turn that loses its process ends with an error instead of holding the update drain indefinitely (docs/restarts.md).</li>
 <li><strong>Keep it up</strong> while any of these holds:
 <ul>
 <li>a turn is running;</li>
