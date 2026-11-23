@@ -187,10 +187,12 @@ with a misleading “Sent” response.</p>
 <li>
 <p><strong>Limits (settings):</strong></p>
 <ul>
-<li><code>max_subagent_depth</code>: the main agent is depth 0, its subagents depth 1, and so on.</li>
-<li><code>max_running_subagents</code> per tree: the number running at once below one top-level session.</li>
+<li><code>max_depth</code> (<code>max_subagent_depth</code> on the worker): the main agent is depth 0, its subagents depth 1, and so on. Default: 5.</li>
+<li><code>max_running</code> (<code>max_running_subagents</code> on the worker): an optional count cap per tree. Default: 0, meaning no count cap.</li>
 </ul>
-<p>At the depth limit, the subagent isn't given <code>Task</code> or <code>SendMessage</code>. Over the running limit, <code>Task</code> returns an error saying how many are running. A named agent whose tool list leaves out <code>Task</code> can't nest, whatever its depth.</p>
+<p>At the depth limit, the subagent isn't given <code>Task</code> or <code>SendMessage</code>. If you set an explicit running cap, <code>Task</code> refuses a launch above it and tells the agent how many are running. A named agent whose tool list leaves out <code>Task</code> can't nest, whatever its depth.</p>
+<p>Independently of the count cap, a worker can hold a subagent launch or continuation when it detects low memory headroom or high system load. The transcript shows “Queued: worker busy” and the launch is retried as headroom returns. This is a best-effort check on the worker, not a memory limit or an OOM guarantee; it does not measure the SSH host or predict the resource use of later tools.</p>
+<p>Saved settings that match the previous defaults adopt the new defaults on upgrade. Custom caps stay in effect, and you can explicitly set an old value again after upgrading.</p>
 </li>
 <li>
 <p><strong>Inheritance:</strong></p>
@@ -210,7 +212,7 @@ with a misleading “Sent” response.</p>
 </ul>
 </li>
 <li>
-<p><strong>Notice chains.</strong> A report bubbling up through idle subagents can set off a chain of turns. Work descended from a direct user turn remains expected, but progress and spending guards still apply at each level. Quiet user reports do not wake an idle parent.</p>
+<p><strong>Notice chains.</strong> Distinct reports can keep waking an idle parent; there is no fixed wake limit. For repeated activity without progress, the <a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/notices.md">runaway guard</a> warns the agent, then slows delivery, then pauses with evidence if the loop persists. Quiet user reports do not wake an idle parent. The default session-message ceiling is 50 hops as a last resort; the deprecated hourly message cap and the optional hourly notice token cap are off by default.</p>
 </li>
 </ul>
 <h2 id="8-claude-code-sessions">8. Claude Code sessions</h2>
@@ -287,7 +289,7 @@ with a misleading “Sent” response.</p>
 <li><strong>Continuing:</strong> a separate <code>SendMessage</code> tool rather than <code>resume</code> on <code>Task</code>.</li>
 <li><strong>Claude Code subagents</strong> are shown read-only.</li>
 <li><strong>Subagents can start subagents.</strong></li>
-<li><strong>Default limits:</strong> <code>max_subagent_depth</code> = 3 and <code>max_running_subagents</code> = 16 per tree.</li>
+<li><strong>Default limits:</strong> <code>max_subagent_depth</code> = 5 and <code>max_running_subagents</code> = 0 (no count cap) per tree.</li>
 </ol>
 <h2 id="background-tasks-completion-and-inspection">Background tasks: completion and inspection</h2>
 <p>carbon6-managed shell tasks use the same background manager across the Generic, Claude and Codex tool profiles. Set <code>run_in_background: true</code> on Bash / shell. Completion is pushed to the session: a running model receives the notice at its next boundary, and an idle session merges completions before waking, subject to progress and spending guards. Held notices survive worker restart. The model need not poll output simply to wait. Use <code>notify: false</code> for servers and watchers that should not wake it. See <a href="https://github.com/carbon6-dev/carbon6/blob/main/docs/notices.md">Notice scheduling</a>.</p>
